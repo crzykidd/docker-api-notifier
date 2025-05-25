@@ -32,5 +32,5 @@ jobs:
           context: .
           push: true
           tags: |
-            yourdockerhubusername/docker-api-notifier:${{ env.VERSION }}
-            yourdockerhubusername/docker-api-notifier:latest
+            crzykidd/docker-api-notifier:${{ env.VERSION }}
+            crzykidd/docker-api-notifier:latest
