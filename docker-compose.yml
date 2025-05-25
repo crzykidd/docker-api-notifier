@@ -1,0 +1,13 @@
+services:
+  docker-api-notifier:
+    build: .
+    container_name: docker-api-notifier
+    environment:
+      - DNS_SERVER_TYPE=Technitium
+      - DNS_SERVER_URL=${DNS_SERVER_URL}
+      - DNS_SERVER_API_TOKEN=${DNS_SERVER_API_TOKEN}
+      - TZ=America/Los_Angeles
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/hostname:/etc/host_hostname:ro
+    restart: unless-stopped
