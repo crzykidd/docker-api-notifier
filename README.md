@@ -1,8 +1,4 @@
-Here’s your `README.md` with the new **Service Tracker Dashboard notifier** section integrated — keeping the structure, tone, and format consistent:
 
----
-
-````markdown
 # docker-api-notifier
 
 **docker-api-notifier** is a lightweight, extensible Python service that listens for Docker container events (e.g., container start) and triggers notification logic based on container labels.
@@ -161,10 +157,3 @@ GNU GENERAL PUBLIC LICENSE. See [LICENSE](./LICENSE) for details.
 ## Feedback & Contributions
 
 Open issues and PRs are welcome — especially for new notifier plugins!
-
-```
-
----
-
-Let me know if you want this saved as a file or zipped into your project directory.
-```
