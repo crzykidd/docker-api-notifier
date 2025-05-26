@@ -20,6 +20,7 @@ def handle_container_start(container, docker_host):
     notifier_list = [n.strip() for n in notifier_list_raw.split(",") if n.strip()]
 
     container_name = container.name
+    docker_status = container.status
     container_hostname = labels.get("dockernotifier.containerhostname")
     zone_label = labels.get("dockernotifier.containerzone")
     docker_domain = labels.get("dockernotifier.dockerdomain")
@@ -57,7 +58,8 @@ def handle_container_start(container, docker_host):
             container_id=container.id,
             internalurl=internalurl,
             externalurl=externalurl,
-            stack_name=stack_name
+            stack_name=stack_name,
+            docker_status=docker_status
         )
 
 def main():

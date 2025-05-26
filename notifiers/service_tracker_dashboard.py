@@ -2,7 +2,7 @@ import os
 import requests
 from datetime import datetime
 
-def register(container_name, docker_host, container_id=None, internalurl=None, externalurl=None, stack_name=None):
+def register(container_name, docker_host, container_id=None, internalurl=None, externalurl=None, stack_name=None, docker_status=None):
     dashboard_url = os.environ.get("SERVICE_TRACKER_URL")
     api_token = os.environ.get("SERVICE_TRACKER_API_TOKEN")
 
@@ -26,6 +26,8 @@ def register(container_name, docker_host, container_id=None, internalurl=None, e
         payload["externalurl"] = externalurl
     if stack_name:
         payload["stack_name"] = stack_name
+    if docker_status:
+        payload["docker_status"] = docker_status
 
     headers = {
         "Authorization": f"Bearer {api_token}",
