@@ -65,6 +65,13 @@ def main():
     docker_host = get_host_name()
     print(f"[INFO] Starting Docker API Notifier on host: {docker_host}")
 
+    # 🔍 Scan all running containers on startup
+    for container in client.containers.list():
+        try:
+            handle_container_start(container, docker_host)
+        except Exception as e:
+            print(f"[ERROR] Failed to process running container {container.name}: {e}")
+
     for event in client.events(decode=True):
         if event.get("Action") != "start":
             continue
