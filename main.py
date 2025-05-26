@@ -12,7 +12,7 @@ def get_host_name():
     except Exception:
         return os.uname()[1]
 
-def handle_container_start(container, docker_host):
+def handle_container_event(container, docker_host, action):
     labels = container.attrs["Config"]["Labels"]
     notifier_list_raw = labels.get("dockernotifier.notifiers", "").strip()
     if not notifier_list_raw:
@@ -23,21 +23,15 @@ def handle_container_start(container, docker_host):
     container_hostname = labels.get("dockernotifier.containerhostname")
     zone_label = labels.get("dockernotifier.containerzone")
     docker_domain = labels.get("dockernotifier.dockerdomain")
-    fqdn = f"{container_hostname}.{zone_label}"
+    fqdn = f"{container_hostname}.{zone_label}" if container_hostname and zone_label else None
 
     stack_name = labels.get("com.docker.compose.project")
     if not stack_name and "_" in container.name:
         stack_name = container.name.split('_')[0]
 
-    print(f"[MATCH] Container started:")
-    print(f"  Container Name:      {container_name}")
-    print(f"  Container Hostname:  {container_hostname}")
-    print(f"  Zone Label:          {zone_label}")
-    print(f"  Docker Host:         {docker_host}")
-    print(f"  Docker Domain:       {docker_domain}")
-    print(f"  Stack Name:          {stack_name}")
+    print(f"[MATCH] Container {action.upper()}: {container_name}")
 
-    if "dns" in notifier_list:
+    if "dns" in notifier_list and action == "start":
         technitium_dns.register(
             fqdn=fqdn,
             zone=zone_label,
@@ -57,30 +51,39 @@ def handle_container_start(container, docker_host):
             container_id=container.id,
             internalurl=internalurl,
             externalurl=externalurl,
-            stack_name=stack_name
+            stack_name=stack_name,
+            docker_status=action
         )
+
+
 
 def main():
     client = docker.from_env()
     docker_host = get_host_name()
     print(f"[INFO] Starting Docker API Notifier on host: {docker_host}")
 
-    # 🔍 Scan all running containers on startup
+    # Process running containers at startup
     for container in client.containers.list():
         try:
-            handle_container_start(container, docker_host)
+            handle_container_event(container, docker_host, action="start")
         except Exception as e:
             print(f"[ERROR] Failed to process running container {container.name}: {e}")
 
+    # Monitor live events
+    watched_actions = {
+        "start", "stop", "die", "pause", "unpause", "destroy", "kill", "update"
+    }
+
     for event in client.events(decode=True):
-        if event.get("Action") != "start":
+        action = event.get("Action")
+        if action not in watched_actions:
             continue
         container_id = event.get("id")
         try:
             container = client.containers.get(container_id)
-            handle_container_start(container, docker_host)
+            handle_container_event(container, docker_host, action)
         except Exception as e:
-            print(f"[ERROR] Failed to handle container {container_id}: {e}")
+            print(f"[ERROR] Failed to handle {action} event for {container_id}: {e}")
 
 if __name__ == "__main__":
     main()
