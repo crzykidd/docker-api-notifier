@@ -26,11 +26,12 @@ jobs:
         id: meta
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image (multi-arch)
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             crzykidd/docker-api-notifier:${{ env.VERSION }}
             crzykidd/docker-api-notifier:latest
