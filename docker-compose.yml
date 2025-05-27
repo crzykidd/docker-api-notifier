@@ -9,7 +9,9 @@ services:
       - SERVICE_TRACKER_URL=${SERVICE_TRACKER_URL}
       - SERVICE_TRACKER_API_TOKEN=${SERVICE_TRACKER_API_TOKEN}
       - TZ=America/Los_Angeles
+      - STD_REFRESH_SECONDS=120
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/hostname:/etc/host_hostname:ro
+      - /var/docker/docker-api-notifier:/config
     restart: unless-stopped
