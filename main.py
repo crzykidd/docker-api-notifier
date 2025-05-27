@@ -44,6 +44,8 @@ def handle_container_event(container, docker_host, action):
     if "service-tracker-dashboard" in notifier_list:
         internalurl = labels.get("dockernotifier.std.internalurl")
         externalurl = labels.get("dockernotifier.std.externalurl")
+        internal_health = labels.get("dockernotifier.std.internal.health")
+        external_health = labels.get("dockernotifier.std.external.health")
 
         service_tracker_dashboard.register(
             container_name=container_name,
@@ -52,8 +54,11 @@ def handle_container_event(container, docker_host, action):
             internalurl=internalurl,
             externalurl=externalurl,
             stack_name=stack_name,
-            docker_status=action
+            docker_status=action,
+            internal_health=internal_health,
+            external_health=external_health
         )
+
 
 
 
