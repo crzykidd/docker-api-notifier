@@ -40,13 +40,14 @@ def handle_container_event(container, docker_host, action):
             docker_host=docker_host,
             stack_name=stack_name
         )
-
+    
     if "service-tracker-dashboard" in notifier_list:
         internalurl = labels.get("dockernotifier.std.internalurl")
         externalurl = labels.get("dockernotifier.std.externalurl")
         internal_health = labels.get("dockernotifier.std.internal.health")
         external_health = labels.get("dockernotifier.std.external.health")
-
+        group = labels.get("dockernotifier.std.group")
+        image = container.image.tags[0] if container.image.tags else container.image.short_id
         service_tracker_dashboard.register(
             container_name=container_name,
             docker_host=docker_host,
@@ -56,7 +57,9 @@ def handle_container_event(container, docker_host, action):
             stack_name=stack_name,
             docker_status=action,
             internal_health=internal_health,
-            external_health=external_health
+            external_health=external_health,
+            image=image,
+            group=group
         )
 
 
