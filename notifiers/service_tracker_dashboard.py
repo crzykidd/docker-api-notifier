@@ -1,8 +1,9 @@
 import os
 import requests
 from datetime import datetime
+import json
 
-def register(container_name, docker_host, container_id=None, internalurl=None, externalurl=None, stack_name=None, docker_status=None):
+def register(container_name, docker_host, container_id=None, internalurl=None, externalurl=None, stack_name=None, docker_status=None, internal_health=None, external_health=None):
     dashboard_url = os.environ.get("SERVICE_TRACKER_URL")
     api_token = os.environ.get("SERVICE_TRACKER_API_TOKEN")
 
@@ -28,14 +29,24 @@ def register(container_name, docker_host, container_id=None, internalurl=None, e
         payload["stack_name"] = stack_name
     if docker_status:
         payload["docker_status"] = docker_status
+    if internal_health is not None:
+        payload["internal_health_check_enabled"] = internal_health
+    if external_health is not None:
+        payload["external_health_check_enabled"] = external_health
 
     headers = {
         "Authorization": f"Bearer {api_token}",
         "Content-Type": "application/json"
     }
 
+    # TEMP DEBUG LOG
+    print("[DEBUG] Sending registration payload:")
+    print(json.dumps(payload, indent=2))
+    print(f"[DEBUG] Endpoint: {endpoint}")
+
     try:
         response = requests.post(endpoint, json=payload, headers=headers)
-        print(f"[INFO] service-tracker-dashboard response: {response.status_code} {response.text}")
-    except Exception as e:
-        print(f"[ERROR] Failed to notify service-tracker-dashboard: {e}")
+        response.raise_for_status()
+        print(f"[DEBUG] Successfully registered: {container_name} on {docker_host}")
+    except requests.RequestException as e:
+        print(f"[ERROR] Failed to register container: {e}")

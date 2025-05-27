@@ -9,6 +9,9 @@ The first notifier I have written is for Technitium DNS server. I will look at a
 
 Fair warning some of this was written with ChatGPT.
 
+I have updated and it now supports sending data to service tracker dashboard via api.   
+<https://github.com/crzykidd/service-tracker-dashboard>
+
 ---
 
 ## Features
@@ -19,6 +22,7 @@ Fair warning some of this was written with ChatGPT.
 - Supports modular notifiers (e.g., DNS, dashboard, etc.)
 - Runs as a container
 - Easily configurable via environment variables
+- enable ability to send health check enabled in api
 
 ---
 
@@ -75,6 +79,8 @@ labels:
   dockernotifier.dockerdomain: "home.arpa"
   dockernotifier.std.internalurl: "http://nginx:80"
   dockernotifier.std.externalurl: "https://nginx.example.com"
+  dockernotifier.std.internal.health: true    # if true service tracker dashboard will enable checks for the internal URL.
+  dockernotifier.std.external.health: false   # if true service tracker dashboard will enable checks for the external URL.
 ```
 
 > The `dockernotifier.notifiers` label is required. If missing or empty, the container will be ignored.
