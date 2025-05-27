@@ -3,7 +3,7 @@ import requests
 from datetime import datetime
 import json
 
-def register(container_name, docker_host, container_id=None, internalurl=None, externalurl=None, stack_name=None, docker_status=None, internal_health=None, external_health=None, image=None, group=None):
+def register(container_name, docker_host, container_id=None, internalurl=None, externalurl=None, stack_name=None, docker_status=None, internal_health=None, external_health=None, image=None, group=None, started_at=None):
     dashboard_url = os.environ.get("SERVICE_TRACKER_URL")
     api_token = os.environ.get("SERVICE_TRACKER_API_TOKEN")
 
@@ -36,6 +36,10 @@ def register(container_name, docker_host, container_id=None, internalurl=None, e
         payload["external_health_check_enabled"] = external_health
     if group:
         payload["group"] = group
+    if group:
+        payload["started_at"] = started_at
+
+    
 
     headers = {
         "Authorization": f"Bearer {api_token}",

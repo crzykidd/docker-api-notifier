@@ -48,6 +48,7 @@ def handle_container_event(container, docker_host, action):
         external_health = labels.get("dockernotifier.std.external.health")
         group = labels.get("dockernotifier.std.group")
         image = container.image.tags[0] if container.image.tags else container.image.short_id
+        started_at = container.attrs["State"]["StartedAt"]
         service_tracker_dashboard.register(
             container_name=container_name,
             docker_host=docker_host,
@@ -59,7 +60,8 @@ def handle_container_event(container, docker_host, action):
             internal_health=internal_health,
             external_health=external_health,
             image=image,
-            group=group
+            group=group,
+            started_at=started_at
         )
 
 
