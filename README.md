@@ -1,165 +1,108 @@
+# 🚀 Docker API Notifier
 
-# docker-api-notifier
+![Docker Image](https://img.shields.io/badge/docker-ready-blue?logo=docker)
+![Python](https://img.shields.io/badge/python-3.11-blue?logo=python)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-**docker-api-notifier** is a lightweight, extensible Python service that listens for Docker container events (e.g., container start) and triggers notification logic based on container labels.
-
-This came out of a problem I was trying to solve. When a container starts up on a host I want it to auto register itself in my DNS server as a CNAME record to the docker host it was running on.
-
-The first notifier I have written is for Technitium DNS server. I will look at adding some other things, like Pi-hole support, as well as additional.
-
-Fair warning some of this was written with ChatGPT.
-
-I have updated and it now supports sending data to service tracker dashboard via api.   
-<https://github.com/crzykidd/service-tracker-dashboard>
+A lightweight, event-driven Docker monitor that automatically updates DNS entries and service dashboards based on container events and metadata.
 
 ---
 
-## Features
+## 📚 Table of Contents
 
-- Watches for Docker `start` events in real-time
-- Parses container labels to determine notification actions
-- Ships with Technitium DNS notifier for automatic CNAME registration
-- Supports modular notifiers (e.g., DNS, dashboard, etc.)
-- Runs as a container
-- Easily configurable via environment variables
-- enable ability to send health check enabled in api
+1. [What It Does](#1-what-it-does)
+2. [Environment Variables](#2-environment-variables)
+3. [Labels You Can Use](#3-labels-you-can-use)
+4. [Docker Compose Example](#4-docker-compose-example)
+5. [Building Locally](#5-building-locally)
 
 ---
 
-## Getting Started
+## 1. What It Does
 
-### Run with Docker Compose
+`docker-api-notifier` listens for Docker events (start, stop, die, etc.) and sends updates to external systems.
+
+Supported integrations:
+- 🧭 **Technitium DNS** – updates DNS records.
+- 📊 **Service Tracker Dashboard** – sends metadata and health checks.
+
+---
+
+## 2. Environment Variables
+
+### 🛠 General
+
+| Variable               | Required | Default | Description |
+|------------------------|----------|---------|-------------|
+| TZ                   | No       | `UTC`   | Timezone for logging. |
+
+### 🌐 DNS (Technitium)
+
+| Variable               | Required | Description |
+|------------------------|----------|-------------|
+| DNS_SERVER_URL       | ✅ Yes   | URL to your DNS API. |
+| DNS_SERVER_API_TOKEN | ✅ Yes   | Auth token for DNS server. |
+| DNS_SERVER_TYPE      | No       | Optional descriptor. |
+
+### 📊 Service Tracker Dashboard
+
+| Variable           | Required | Description |
+|--------------------|----------|-------------|
+| STD_URL          | ✅ Yes   | Dashboard API endpoint. |
+| STD_API_TOKEN    | ✅ Yes   | API token for dashboard. |
+| STD_LOG_TO_STDOUT| No       | Set to `0` to disable console logs. |
+| STD_REFRESH_SECONDS  | No       | `300` Interval in seconds to check container state and update API |
+
+---
+
+## 3. Labels You Can Use
+
+Add labels to your containers to control what happens when they're started or updated.
+
+### 🔧 Required for Activation
+
+| Label                         | Required | Description |
+|------------------------------|----------|-------------|
+| dockernotifier.notifiers   | ✅ Yes   | List of notifiers to run, e.g. `dns,service-tracker-dashboard`. |
+
+### 🌐 DNS Labels
+
+| Label                                  | Required | Description |
+|----------------------------------------|----------|-------------|
+| dockernotifier.dns.containerhostname | ✅ Yes for DNS | Hostname (e.g., `sonarr`). |
+| dockernotifier.dns.containerzone     | ✅ Yes for DNS  | Zone/domain (e.g., `home.local`). |
+| dockernotifier.dns.dockerdomain      | ✅ Yes for DNS  | Docker host domain (e.g., `docker`). |
+
+### 📊 Service Tracker Labels
+
+| Label                                   | Required | Description |
+|----------------------------------------|----------|-------------|
+| dockernotifier.std.internalurl       | No       | Internal service URL. |
+| dockernotifier.std.externalurl       | No       | Public URL. |
+| dockernotifier.std.internal.health   | No       | Internal health check. |
+| dockernotifier.std.external.health   | No       | External health check. |
+| dockernotifier.std.group             | No       | Group name for dashboard. |
+| dockernotifier.std.icon              | No       | Icon file name (e.g. `sonarr.svg`). |
+
+---
+
+## 4. Docker Compose Example
 
 ```yaml
 services:
   docker-api-notifier:
-    image: crzykidd/docker-api-notifier:latest
+    build: .
     container_name: docker-api-notifier
     environment:
       - DNS_SERVER_TYPE=Technitium
-      - DNS_SERVER_URL=${DNS_SERVER_URL}
-      - DNS_SERVER_API_TOKEN=${DNS_SERVER_API_TOKEN}
+      - DNS_SERVER_URL=http://dns.example.com:5380/api/zones/records/add
+      - DNS_SERVER_API_TOKEN=TOKENFROMDNSSERVER
+      - STD_URL=http://std.example.com:8815
+      - STD_API_TOKEN=TOKENFROMSTDSERVER
       - TZ=America/Los_Angeles
+      - STD_REFRESH_SECONDS=300 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/hostname:/etc/host_hostname:ro
+      - /var/docker/docker-api-notifier:/config
     restart: unless-stopped
-````
-
----
-
-## ⚙️ Configuration
-
-| Variable                    | Required | Description                                              |
-| --------------------------- | -------- | -------------------------------------------------------- |
-| `DNS_SERVER_TYPE`           | ✅        | DNS backend type (`Technitium` supported)                |
-| `DNS_SERVER_URL`            | ✅        | URL of your Technitium DNS API endpoint                  |
-| `DNS_SERVER_API_TOKEN`      | ✅        | API token for Technitium DNS                             |
-| `SERVICE_TRACKER_URL`       | ⬜        | Service Tracker Dashboard API URL                        |
-| `SERVICE_TRACKER_API_TOKEN` | ⬜        | Bearer token used to authenticate with the dashboard API |
-| `TZ`                        | ⬜        | Optional timezone for logs (e.g. `America/Los_Angeles`)  |
-
-Example DNS\_SERVER\_URL:
-
-```bash
-DNS_SERVER_URL="http://dns01.domain.com:5380/api/zones/records/add"
-```
-
----
-
-## Container Labels
-
-To trigger `docker-api-notifier`, label your containers with:
-
-```yaml
-labels:
-  dockernotifier.notifiers: "dns"
-  dockernotifier.containerhostname: "testapp"
-  dockernotifier.containerzone: "home.arpa"
-  dockernotifier.dockerdomain: "home.arpa"
-  dockernotifier.std.internalurl: "http://nginx:80"
-  dockernotifier.std.externalurl: "https://nginx.example.com"
-  dockernotifier.std.internal.health: true    # if true service tracker dashboard will enable checks for the internal URL.
-  dockernotifier.std.external.health: false   # if true service tracker dashboard will enable checks for the external URL.
-```
-
-> The `dockernotifier.notifiers` label is required. If missing or empty, the container will be ignored.
-
-* `dns` triggers DNS CNAME registration.
-* `service-tracker-dashboard` triggers a POST to your internal service dashboard.
-
----
-
-## 🔔 Service Tracker Dashboard Notifier
-
-To enable the service tracker integration, include `service-tracker-dashboard` in your notifier list:
-
-```yaml
-labels:
-  dockernotifier.notifiers: "service-tracker-dashboard"
-  dockernotifier.std.internalurl: "http://nginx:80"           # optional
-  dockernotifier.std.externalurl: "https://nginx.example.com" # optional
-```
-
-The notifier sends a JSON payload to your dashboard API with:
-
-* `container_name` (required)
-* `host` (required)
-* `container_id` (optional)
-* `internalurl` (optional)
-* `externalurl` (optional)
-* `stack_name` (optional — extracted from Docker labels)
-
-You must also set these environment variables:
-
-```yaml
-environment:
-  - SERVICE_TRACKER_URL=http://tracker.local:8080
-  - SERVICE_TRACKER_API_TOKEN=your-secret-token
-```
-
-If either variable is missing, the notifier will skip execution and log:
-
-```
-[INFO] Not enabling Service Tracker Dashboard integration — missing SERVICE_TRACKER_URL or SERVICE_TRACKER_API_TOKEN
-```
-
----
-
-## Extending with Notifiers
-
-New notifiers can be added to the `notifiers/` directory. Each notifier should expose a `register()` function that takes the required context and performs the custom action (e.g., DNS, webhook, dashboard post).
-
----
-
-## Development
-
-Install locally for development:
-
-```bash
-pip install -r requirements.txt
-python main.py
-```
-
----
-
-## Roadmap
-
-* ✅ Real-time event stream
-* ✅ Technitium DNS CNAME support
-* ✅ Service Tracker Dashboard integration
-* 🔜 Support for other DNS providers (Pi-hole)
-* 🔜 Discord or other message apps
-* 🔜 Graceful cleanup / TTL retraction
-
----
-
-## License
-
-GNU GENERAL PUBLIC LICENSE. See [LICENSE](./LICENSE) for details.
-
----
-
-## Feedback & Contributions
-
-Open issues and PRs are welcome — especially for new notifier plugins!
