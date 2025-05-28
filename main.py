@@ -10,8 +10,9 @@ from logging.handlers import RotatingFileHandler
 # === Logging Setup ===
 log_formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s')
 log_handler = RotatingFileHandler(
-    "/config/notifier.log", maxBytes=10 * 1024 * 1024, backupCount=1
+    "/config/notifier.log", maxBytes=10 * 1024 * 1024, backupCount=4
 )
+
 log_handler.setFormatter(log_formatter)
 log_handler.setLevel(logging.INFO)
 
@@ -68,10 +69,10 @@ def handle_container_event(container, docker_host, action):
     container_name = container.name
 
     # Metadata
-    container_hostname = labels.get("dockernotifier.containerhostname")
-    zone_label = labels.get("dockernotifier.containerzone")
-    docker_domain = labels.get("dockernotifier.dockerdomain")
-    fqdn = f"{container_hostname}.{zone_label}" if container_hostname and zone_label else None
+    container_hostname = labels.get("dockernotifier.dns.containerhostname")
+    zone_label = labels.get("dockernotifier.dns.containerzone")
+    docker_domain = labels.get("dockernotifier.dns.dockerdomain")
+    container_fqdn = f"{container_hostname}.{zone_label}" if container_hostname and zone_label else None
     stack_name = labels.get("com.docker.compose.project")
     if not stack_name and "_" in container.name:
         stack_name = container.name.split('_')[0]
@@ -79,10 +80,10 @@ def handle_container_event(container, docker_host, action):
     logger.info(f"[MATCH] Container {action.upper()}: {container_name}")
 
     if action in {"boot", "start"} and "dns" in notifier_list:
-        if fqdn and docker_domain and zone_label:
+        if container_fqdn and docker_domain and zone_label:
             logger.info(f"DNS notifier triggered for {container_name} on {action}")
             technitium_dns.register(
-                fqdn=fqdn,
+                container_fqdn=container_fqdn,
                 zone=zone_label,
                 value=f"{docker_host}.{docker_domain}",
                 container_name=container_name,
@@ -101,11 +102,12 @@ def handle_container_event(container, docker_host, action):
             internalurl=labels.get("dockernotifier.std.internalurl"),
             externalurl=labels.get("dockernotifier.std.externalurl"),
             stack_name=stack_name,
-            docker_status=container.attrs["State"]["Status"].capitalize(),
+            docker_status=container.attrs["State"]["Status"],
             internal_health=labels.get("dockernotifier.std.internal.health"),
             external_health=labels.get("dockernotifier.std.external.health"),
-            image=container.image.tags[0] if container.image.tags else container.image.short_id,
-            group=labels.get("dockernotifier.std.group"),
+            image_name=container.image.tags[0] if container.image.tags else container.image.short_id,
+            group_name=labels.get("dockernotifier.std.group"),
+            image_icon=labels.get("dockernotifier.std.icon"),
             started_at=container.attrs["State"]["StartedAt"]
         )
 

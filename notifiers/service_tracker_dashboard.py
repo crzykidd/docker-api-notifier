@@ -39,13 +39,13 @@ def post_with_retry(endpoint, payload, headers):
 
 
 def register(container_name, docker_host, container_id=None, internalurl=None, externalurl=None, stack_name=None,
-             docker_status=None, internal_health=None, external_health=None, image=None, group=None, started_at=None):
+             docker_status=None, internal_health=None, external_health=None, image_name=None, group_name=None, started_at=None, image_icon=None):
 
-    dashboard_url = os.environ.get("SERVICE_TRACKER_URL")
-    api_token = os.environ.get("SERVICE_TRACKER_API_TOKEN")
+    dashboard_url = os.environ.get("STD_URL")
+    api_token = os.environ.get("STD_API_TOKEN")
 
     if not dashboard_url or not api_token:
-        logger.info("Not enabling Service Tracker Dashboard integration — missing SERVICE_TRACKER_URL or SERVICE_TRACKER_API_TOKEN")
+        logger.info("Not enabling Service Tracker Dashboard integration — missing STD_URL or STD_API_TOKEN")
         return
 
     # 🔔 Log notifier trigger with reason
@@ -58,7 +58,7 @@ def register(container_name, docker_host, container_id=None, internalurl=None, e
         "host": docker_host,
         "container_name": container_name,
         "timestamp": datetime.now().isoformat(),
-        "image": image
+        "image_name": image_name
     }
 
     if container_id:
@@ -75,10 +75,12 @@ def register(container_name, docker_host, container_id=None, internalurl=None, e
         payload["internal_health_check_enabled"] = internal_health
     if external_health is not None:
         payload["external_health_check_enabled"] = external_health
-    if group:
-        payload["group"] = group
+    if group_name:
+        payload["group_name"] = group_name
     if started_at:
         payload["started_at"] = started_at
+    if image_icon:
+        payload["image_icon"] = image_icon
 
     headers = {
         "Authorization": f"Bearer {api_token}",

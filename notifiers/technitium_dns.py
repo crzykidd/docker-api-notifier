@@ -25,7 +25,7 @@ if not logger.handlers:
         logger.addHandler(console_handler)
 
 
-def register(fqdn, zone, value, container_name, docker_host, stack_name=None, trigger_reason="event"):
+def register(container_fqdn, zone, value, container_name, docker_host, stack_name=None, trigger_reason="event"):
     dns_url = os.environ.get("DNS_SERVER_URL")
     token = os.environ.get("DNS_SERVER_API_TOKEN")
     if not dns_url or not token:
@@ -42,7 +42,7 @@ def register(fqdn, zone, value, container_name, docker_host, stack_name=None, tr
 
     params = {
         "token": token,
-        "domain": fqdn,
+        "domain": container_fqdn,
         "zone": zone,
         "type": "CNAME",
         "ttl": 300,
@@ -53,6 +53,6 @@ def register(fqdn, zone, value, container_name, docker_host, stack_name=None, tr
 
     try:
         response = requests.get(dns_url, params=params)
-        logger.info(f'DNS update response for {fqdn}: {response.text}')
+        logger.info(f'DNS update response for {container_fqdn}: {response.text}')
     except Exception as e:
         logger.error(f'DNS update failed for {container_name}: {e}')
