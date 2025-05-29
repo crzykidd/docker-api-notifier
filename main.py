@@ -105,7 +105,7 @@ def handle_container_event(container, docker_host, action):
             docker_status=container.attrs["State"]["Status"],
             internal_health=labels.get("dockernotifier.std.internal.health"),
             external_health=labels.get("dockernotifier.std.external.health"),
-            image_name=container.image.tags[0] if container.image.tags else container.image.short_id,
+            image_name=container.attrs["Config"]["Image"],
             group_name=labels.get("dockernotifier.std.group"),
             image_icon=labels.get("dockernotifier.std.icon"),
             started_at=container.attrs["State"]["StartedAt"]
