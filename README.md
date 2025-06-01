@@ -4,7 +4,13 @@
 ![Python](https://img.shields.io/badge/python-3.11-blue?logo=python)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-A lightweight, event-driven Docker monitor that automatically updates DNS entries and service dashboards based on container events and metadata.
+A lightweight, event-driven Docker monitor that automatically updates DNS entries and service dashboards based on container events and metadata. 
+
+I started this project to solve updating my Technitium DNS server when a host started up on a docker host.   So that is the first task this container does.  
+
+Then as I was working I was struggling with how to update my dashboard via API etc.  So I decided to write a self defining dashboard.   So this notifier also can be enabled to send updates to [STD-Service Tracker Dashboard](https://github.com/crzykidd/service-tracker-dashboard).   
+
+While STD has a small config file and some manual setting options.  The real design was to specify tags in docker compose so that your config would define and update the dashboard.  
 
 ---
 
@@ -82,7 +88,7 @@ Add labels to your containers to control what happens when they're started or up
 | dockernotifier.std.internal.health   | No       | Internal health check. |
 | dockernotifier.std.external.health   | No       | External health check. |
 | dockernotifier.std.group             | No       | Group name for dashboard. |
-| dockernotifier.std.icon              | No       | Icon file name (e.g. `sonarr.svg`). |
+| dockernotifier.std.icon              | No       | Icon file name (e.g. `sonarr.svg`)|
 
 ---
 
