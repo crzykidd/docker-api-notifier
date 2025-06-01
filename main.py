@@ -95,22 +95,26 @@ def handle_container_event(container, docker_host, action):
 
     if "service-tracker-dashboard" in notifier_list and action in NOTIFIER_TRIGGERS["service-tracker-dashboard"]:
         logger.info(f"STD notifier triggered for {container_name} on {action}")
-        service_tracker_dashboard.register(
-            container_name=container_name,
-            docker_host=docker_host,
-            container_id=container.id,
-            internalurl=labels.get("dockernotifier.std.internalurl"),
-            externalurl=labels.get("dockernotifier.std.externalurl"),
-            stack_name=stack_name,
-            docker_status=container.attrs["State"]["Status"],
-            internal_health=labels.get("dockernotifier.std.internal.health"),
-            external_health=labels.get("dockernotifier.std.external.health"),
-            image_name=container.attrs["Config"]["Image"],
-            group_name=labels.get("dockernotifier.std.group"),
-            image_icon=labels.get("dockernotifier.std.icon"),
-            started_at=container.attrs["State"]["StartedAt"]
-        )
+        # Dynamically extract all dockernotifier.std.* labels
+        std_labels = {
+            key.replace("dockernotifier.std.", ""): value
+            for key, value in labels.items()
+            if key.startswith("dockernotifier.std.")
+        }
 
+        # Add base metadata (you can omit or include as needed)
+        std_labels.update({
+            "container_name": container_name,
+            "docker_host": docker_host,
+            "container_id": container.id,
+            "docker_status": container.attrs["State"]["Status"],
+            "image_name": container.attrs["Config"]["Image"],
+            "stack_name": stack_name,
+            "started_at": container.attrs["State"]["StartedAt"]
+        })
+
+        # Send to notifier
+        service_tracker_dashboard.register(**std_labels)
 
 def main():
     client = docker.from_env()

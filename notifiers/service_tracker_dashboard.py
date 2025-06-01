@@ -38,9 +38,7 @@ def post_with_retry(endpoint, payload, headers):
     return response
 
 
-def register(container_name, docker_host, container_id=None, internalurl=None, externalurl=None, stack_name=None,
-             docker_status=None, internal_health=None, external_health=None, image_name=None, group_name=None, started_at=None, image_icon=None):
-
+def register(**kwargs):
     dashboard_url = os.environ.get("STD_URL")
     api_token = os.environ.get("STD_API_TOKEN")
 
@@ -48,39 +46,16 @@ def register(container_name, docker_host, container_id=None, internalurl=None, e
         logger.info("Not enabling Service Tracker Dashboard integration — missing STD_URL or STD_API_TOKEN")
         return
 
-    # 🔔 Log notifier trigger with reason
-    trigger_reason = docker_status if docker_status in {"boot", "refresh"} else "event"
+    # Fallback timestamp if not provided
+    kwargs.setdefault("timestamp", datetime.now().isoformat())
+
+    container_name = kwargs.get("container_name")
+    docker_host = kwargs.get("docker_host")
+
+    trigger_reason = kwargs.get("docker_status") or "event"
     logger.info(f'STD notifier triggered for "{container_name}" due to "{trigger_reason}"')
 
     endpoint = f"{dashboard_url.rstrip('/')}/api/register"
-
-    payload = {
-        "host": docker_host,
-        "container_name": container_name,
-        "timestamp": datetime.now().isoformat(),
-        "image_name": image_name
-    }
-
-    if container_id:
-        payload["container_id"] = container_id
-    if internalurl:
-        payload["internalurl"] = internalurl
-    if externalurl:
-        payload["externalurl"] = externalurl
-    if stack_name:
-        payload["stack_name"] = stack_name
-    if docker_status:
-        payload["docker_status"] = docker_status
-    if internal_health is not None:
-        payload["internal_health_check_enabled"] = internal_health
-    if external_health is not None:
-        payload["external_health_check_enabled"] = external_health
-    if group_name:
-        payload["group_name"] = group_name
-    if started_at:
-        payload["started_at"] = started_at
-    if image_icon:
-        payload["image_icon"] = image_icon
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -88,11 +63,11 @@ def register(container_name, docker_host, container_id=None, internalurl=None, e
     }
 
     logger.debug("Sending registration payload:")
-    logger.debug(json.dumps(payload, indent=2))
+    logger.debug(json.dumps(kwargs, indent=2))
     logger.debug(f"Endpoint: {endpoint}")
 
     try:
-        post_with_retry(endpoint, payload, headers)
+        post_with_retry(endpoint, kwargs, headers)
         logger.debug(f"Successfully registered: {container_name} on {docker_host}")
     except requests.RequestException as e:
         logger.error(f"Failed to register container '{container_name}' after retries: {e}")

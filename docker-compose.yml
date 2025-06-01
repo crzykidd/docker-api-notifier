@@ -14,4 +14,5 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/hostname:/etc/host_hostname:ro
       - /var/docker/docker-api-notifier:/config
+      - .:/app
     restart: unless-stopped
