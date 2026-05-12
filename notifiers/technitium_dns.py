@@ -15,12 +15,27 @@ def _do_dns_update(dns_url, params):
     return response
 
 
-def register(container_fqdn, zone, value, container_name, docker_host, stack_name=None, trigger_reason="event"):
+def register(*, container_fqdn, zone, value, trigger_reason="event", **kwargs):
+    """
+    Register a CNAME with Technitium DNS.
+
+    DNS-specific (required): container_fqdn, zone, value.
+
+    Accepts the common notifier base kwargs contract via **kwargs;
+    container_name, docker_host, and stack_name are read out for
+    log lines and the record comment. Unrecognised kwargs are
+    ignored, which keeps the signature forward-compatible as the
+    contract grows.
+    """
     dns_url = os.environ.get("DNS_SERVER_URL")
     token = os.environ.get("DNS_SERVER_API_TOKEN")
     if not dns_url or not token:
         logger.error("Missing DNS_SERVER_URL or DNS_SERVER_API_TOKEN")
         return
+
+    container_name = kwargs.get("container_name", "<unknown>")
+    docker_host = kwargs.get("docker_host", "<unknown>")
+    stack_name = kwargs.get("stack_name")
 
     logger.info(f'DNS notifier triggered for "{container_name}" due to "{trigger_reason}"')
 
