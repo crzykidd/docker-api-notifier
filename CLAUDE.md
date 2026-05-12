@@ -108,16 +108,17 @@ The contract is:
 
 ## Notifier Module Conventions
 
-- One module per downstream system, under `notifiers/`.
-- Each module exposes a `register(...)` function.
-- Each module owns its own auth handling and payload shape — wire format
-  is decided by the downstream system, not by this code.
-- Retry policy is shared via the common retry helper (v0.3.0+).
-- Logging configuration is shared via a single setup module (v0.3.0+) —
-  individual notifiers must not declare their own handlers.
-- Adding a new notifier target: drop a new module under `notifiers/`,
-  wire it into the dispatch in `main.py`, document the env vars in
-  `README.md`, and add a section to `PRD.md` §3.
+The notifier module contract is documented in `docs/PRD.md` §3.3.
+A reference template is at `notifiers/_template.py`.
+
+In short: one module per downstream system under `notifiers/`,
+exposing `register(**kwargs)`. Modules consume shared logging
+(`logging_setup`) and shared retry (`retry`). They own their own
+auth and wire format.
+
+When adding a new notifier: copy `notifiers/_template.py`, replace
+the placeholders, wire it into `main.py`'s `NOTIFIER_TRIGGERS` and
+dispatch, document env vars and labels in `README.md`.
 
 ## Git Rules
 

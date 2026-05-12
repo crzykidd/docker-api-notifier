@@ -136,6 +136,85 @@ The periodic loop exists for resilience: if the notifier missed an
 event (network blip, container crash mid-event), the next refresh pass
 catches it.
 
+### 3.3 Notifier Module Contract
+
+Every notifier module under `notifiers/` follows the same shape so
+that adding a new downstream target is a small, mechanical change.
+
+#### File layout
+
+- One module per downstream system: `notifiers/<target>.py`.
+- The module exposes a single public function:
+  `register(**kwargs) -> None`.
+- The module owns its own auth handling, payload construction,
+  and wire format. It does not own logging configuration or
+  retry policy — both are shared.
+
+#### Required imports
+
+```python
+from logging_setup import get_logger
+from retry import with_retry
+
+logger = get_logger("<target>_notifier")
+```
+
+The logger name should be `<target>_notifier` so log lines remain
+filterable per-target.
+
+#### The base kwargs contract
+
+`main.py` invokes `register(**kwargs)` with the following keyword
+arguments guaranteed present:
+
+| Key | Type | Meaning |
+|-----|------|---------|
+| `container_name` | str | Container name (no leading `/`) |
+| `container_id` | str | Full Docker container ID |
+| `docker_host` | str | The host this notifier instance runs on |
+| `docker_status` | str | Container state (e.g. "running", "exited") |
+| `image_name` | str | Image reference from container config |
+| `stack_name` | Optional[str] | `com.docker.compose.project` label or `None` |
+| `started_at` | str | ISO timestamp from container state |
+| `action` | str | The action that triggered this call (e.g. "start", "boot", "refresh") |
+
+Modules may additionally receive notifier-specific extras (typically
+from stripped label namespaces). A module reading any extra should
+use `kwargs.get(...)` with a sensible default rather than relying
+on presence.
+
+#### Required behavior
+
+A `register()` implementation must:
+
+1. Read its own required env vars (e.g. `<TARGET>_URL`,
+   `<TARGET>_API_TOKEN`). Return early with a single info log line
+   if any are missing — do not raise.
+2. Translate the kwargs into the downstream system's wire format.
+   The translation lives inside the module, not in `main.py`.
+3. Send the request, using `@with_retry` on the network call.
+4. Catch `requests.RequestException` after retries; log and return.
+   Do not let transient failures kill the event loop in `main.py`.
+5. Not catch broader exceptions — programming errors should propagate
+   to `main.py`'s outer try/except for visibility.
+
+#### Wiring a new notifier into dispatch
+
+In `main.py`:
+
+1. Add the module's name to `NOTIFIER_TRIGGERS`, declaring which
+   actions the notifier responds to (drawn from
+   `WATCHED_DOCKER_ACTIONS` and `SYNTHETIC_ACTIONS`).
+2. Add a dispatch branch in `handle_container_event` that calls the
+   module's `register(**base_kwargs, **target_specific_extras)`.
+
+In `README.md`:
+
+3. Document the module's required env vars.
+4. Document any `dockernotifier.<target>.*` labels operators set.
+
+A reference implementation lives at `notifiers/_template.py`.
+
 ---
 
 ## 4. Configuration Model

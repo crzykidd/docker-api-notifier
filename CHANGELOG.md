@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `dockernotifier.std.external.health` label values are converted
   from string to bool, and `dockernotifier.std.sort.priority` is
   converted from string to int, before being sent to STD.
+- PRD §3.3 documents the notifier module contract.
 
 ### Changed
 - STD notifier emits canonical key names (`host`, `group_name`,
