@@ -29,12 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - Unused `trigger_reason` parameter from the DNS notifier's `register()`
   signature.
-- Stale `"refresh"` entry in `NOTIFIER_TRIGGERS`. The periodic re-scan
-  path no longer consults the trigger map.
+- Inline `watched_actions` literal in `main()`; the Docker event loop
+  now reads from the module-level `WATCHED_DOCKER_ACTIONS` constant.
 
 ### Fixed
-- `watched_actions` now includes everything `NOTIFIER_TRIGGERS`
-  references, so events the notifier claims to support actually fire.
+- Real Docker actions and synthetic actions (`boot`, `refresh`) are now
+  declared as separate constants in `main.py` (`WATCHED_DOCKER_ACTIONS`
+  and `SYNTHETIC_ACTIONS`) and composed into `NOTIFIER_TRIGGERS`. No
+  behavior change — clarifies what the notifier subscribes to from
+  Docker vs. what it injects internally.
 - Misleading comment on `STD_REFRESH_SECONDS` ("60 minutes" → "60
   seconds").
 

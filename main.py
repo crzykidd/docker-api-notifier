@@ -28,11 +28,21 @@ logger.addHandler(console_handler)
 # === Settings ===
 logger.debug("main.py is running")
 STD_REFRESH_SECONDS = int(os.environ.get("STD_REFRESH_SECONDS", "60"))  # Default to 60 seconds
+
+# Real Docker events the notifier subscribes to.
+WATCHED_DOCKER_ACTIONS = frozenset({
+    "start", "stop", "die", "pause", "unpause",
+    "destroy", "kill", "update",
+})
+
+# Synthetic actions the notifier injects (not from Docker).
+SYNTHETIC_ACTIONS = frozenset({"boot", "refresh"})
+
+# Per-notifier action sets. Each notifier declares the actions it wants
+# to be invoked for, drawn from WATCHED_DOCKER_ACTIONS and SYNTHETIC_ACTIONS.
 NOTIFIER_TRIGGERS = {
     "dns": {"boot", "start"},
-    "service-tracker-dashboard": {
-        "boot", "start", "stop", "die", "pause", "unpause", "destroy", "kill", "update", "refresh"
-    }
+    "service-tracker-dashboard": WATCHED_DOCKER_ACTIONS | SYNTHETIC_ACTIONS,
 }
 
 
@@ -130,10 +140,9 @@ def main():
 
     threading.Thread(target=periodic_update_loop, args=(docker_host,), daemon=True).start()
 
-    watched_actions = {"start", "stop", "die", "pause", "unpause", "destroy", "kill", "update"}
     for event in client.events(decode=True):
         action = event.get("Action")
-        if action not in watched_actions:
+        if action not in WATCHED_DOCKER_ACTIONS:
             continue
         container_id = event.get("id")
         try:
