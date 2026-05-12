@@ -60,10 +60,11 @@ notifier targets can be added without touching the core event loop.
 
 ### General
 
-| Variable                | Required | Default | Description |
-|-------------------------|----------|---------|-------------|
-| `TZ`                    | No       | `UTC`   | Timezone for log timestamps. |
-| `STD_REFRESH_SECONDS`   | No       | `60`    | Periodic re-scan interval in **seconds**. |
+| Variable                  | Required | Default | Description |
+|---------------------------|----------|---------|-------------|
+| `TZ`                      | No       | `UTC`   | Timezone for log timestamps. |
+| `STD_REFRESH_SECONDS`     | No       | `60`    | Periodic re-scan interval in **seconds**. |
+| `NOTIFIER_LOG_TO_STDOUT`  | No       | `1`     | Set to `0` to silence console output. Logs still go to `/config/notifier.log`. Replaces the per-notifier `DNS_LOG_TO_STDOUT` and `STD_LOG_TO_STDOUT` vars, which are no longer recognized. |
 
 ### Technitium DNS
 
@@ -79,8 +80,6 @@ notifier targets can be added without touching the core event loop.
 |-------------------|----------|-------------|
 | `STD_URL`         | Yes (for STD) | Base URL of the STD instance, e.g. `http://std.example.com:8815`. |
 | `STD_API_TOKEN`   | Yes (for STD) | Bearer token configured on the STD side. |
-| `STD_LOG_TO_STDOUT` | No     | Set to `0` to silence the STD notifier's stdout logging. |
-| `DNS_LOG_TO_STDOUT` | No     | Set to `0` to silence the DNS notifier's stdout logging. |
 
 If a notifier's required env vars are missing, that notifier silently
 no-ops — the container won't fail to start. This is intentional so you

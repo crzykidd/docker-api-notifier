@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stack-name resolution: when `com.docker.compose.project` is missing,
   the notifier passes `stack_name=None` rather than splitting the
   container name on `_`.
+- Replaced per-notifier `DNS_LOG_TO_STDOUT` and `STD_LOG_TO_STDOUT`
+  env vars with a single `NOTIFIER_LOG_TO_STDOUT`. Default unchanged
+  (console on). Operators who previously set `DNS_LOG_TO_STDOUT=0` or
+  `STD_LOG_TO_STDOUT=0` should switch to `NOTIFIER_LOG_TO_STDOUT=0`.
 
 ### Removed
 - Unused `trigger_reason` parameter from the DNS notifier's `register()`

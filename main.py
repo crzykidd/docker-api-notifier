@@ -4,26 +4,9 @@ from datetime import datetime
 from notifiers import technitium_dns, service_tracker_dashboard
 import threading
 import time
-import logging
-from logging.handlers import RotatingFileHandler
+from logging_setup import get_logger
 
-# === Logging Setup ===
-log_formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s')
-log_handler = RotatingFileHandler(
-    "/config/notifier.log", maxBytes=10 * 1024 * 1024, backupCount=4
-)
-
-log_handler.setFormatter(log_formatter)
-log_handler.setLevel(logging.INFO)
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logger.addHandler(log_handler)
-
-# Optional: also log to console (stdout)
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(log_formatter)
-logger.addHandler(console_handler)
+logger = get_logger("main")
 
 # === Settings ===
 logger.debug("main.py is running")

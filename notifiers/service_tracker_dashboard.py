@@ -3,27 +3,9 @@ import requests
 from datetime import datetime
 import json
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-import logging
-from logging.handlers import RotatingFileHandler
+from logging_setup import get_logger
 
-NOTIFIER_LOG_FILE = "/config/notifier.log"
-
-# === Logging Setup ===
-logger = logging.getLogger("std_notifier")
-if not logger.handlers:
-    log_formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s')
-    log_handler = RotatingFileHandler(
-        NOTIFIER_LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=1
-    )
-    log_handler.setFormatter(log_formatter)
-    logger.setLevel(logging.INFO)
-    logger.addHandler(log_handler)
-
-    # Optional console logging
-    if os.environ.get("STD_LOG_TO_STDOUT", "1") == "1":
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(log_formatter)
-        logger.addHandler(console_handler)
+logger = get_logger("std_notifier")
 
 
 @retry(

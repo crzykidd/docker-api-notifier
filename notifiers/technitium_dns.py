@@ -2,27 +2,9 @@ import os
 import requests
 import urllib.parse
 from datetime import datetime
-import logging
-from logging.handlers import RotatingFileHandler
+from logging_setup import get_logger
 
-NOTIFIER_LOG_FILE = "/config/notifier.log"
-
-# === Logging Setup ===
-logger = logging.getLogger("dns_notifier")
-if not logger.handlers:
-    log_formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s')
-    log_handler = RotatingFileHandler(
-        NOTIFIER_LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=1
-    )
-    log_handler.setFormatter(log_formatter)
-    logger.setLevel(logging.INFO)
-    logger.addHandler(log_handler)
-
-    # Optional: also log to console if running standalone
-    if os.environ.get("DNS_LOG_TO_STDOUT", "1") == "1":
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(log_formatter)
-        logger.addHandler(console_handler)
+logger = get_logger("dns_notifier")
 
 
 def register(container_fqdn, zone, value, container_name, docker_host, stack_name=None, trigger_reason="event"):
