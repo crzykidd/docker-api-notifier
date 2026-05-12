@@ -179,7 +179,7 @@ Tags shipped on `main`: v0.1.0 → v0.2.3.
 | N4  | Event handling        | `"refresh"` is in `NOTIFIER_TRIGGERS["service-tracker-dashboard"]` but not in `watched_actions`, so it never fires from the event stream. The periodic loop is the only path that uses it. |
 | N5  | Stack-name fallback   | **Resolved in v0.3.0.** When `com.docker.compose.project` is missing, falls back to splitting `container.name` on `_`. Fragile and wrong for any container whose name contains an underscore for unrelated reasons. Fixed by removing the fallback entirely: `stack_name` is now `None` when the label is absent, and each notifier handles that case explicitly. |
 | N6  | Comments              | `STD_REFRESH_SECONDS` default comment in `main.py` says "60 minutes" but the value is 60 seconds.      |
-| N7  | Wire contract         | STD notifier currently sends a free-form kwargs dict. Needs to align with STD v0.5.0 canonical key names and target the new `/api/v1/register` endpoint. |
+| N7  | Wire contract         | **Resolved in v0.3.0.** STD notifier now translates its working kwargs dict into STD v0.5.0's canonical schema (`host`, `group_name`, `image_icon`, `internal_health_check_enabled`, `external_health_check_enabled`, `sort_priority`, ...) and posts to `/api/v1/register`. Bool and int coercion happens at the notifier boundary; unknown keys are dropped client-side so STD's strict pydantic validator does not reject the request. |
 
 ### 5.3 Minor housekeeping (not blocking v0.3.0 but worth doing)
 

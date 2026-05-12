@@ -7,9 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> Targeting v0.3.0. **Must ship after STD v0.5.0** — this release starts
-> emitting canonical keys against `/api/v1/register`, which STD v0.5.0
-> introduces.
+> Targeting v0.3.0. **Requires STD v0.5.0 or later.** This release
+> emits payloads to `/api/v1/register` using STD's canonical schema;
+> earlier STD versions do not expose that endpoint.
 
 ### Added
 - Shared logging setup module consumed by `main.py` and all notifier
@@ -21,12 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `container_id`, `docker_host`, `docker_status`, `image_name`,
   `stack_name`, `started_at`, `action`). Notifier-specific extras
   are layered on top.
+- Boolean and integer coercion for STD health-check and sort-priority
+  labels at the notifier boundary. `dockernotifier.std.internal.health`
+  and `dockernotifier.std.external.health` label values are converted
+  from string to bool, and `dockernotifier.std.sort.priority` is
+  converted from string to int, before being sent to STD.
 
 ### Changed
-- STD notifier emits canonical key names (`host`, `group`,
-  `internal_health_check_enabled`, ...) and posts to
-  `/api/v1/register` instead of `/api/register`. Old STD instances
-  continue to work via STD's compat shim until STD v0.6.0.
+- STD notifier emits canonical key names (`host`, `group_name`,
+  `internal_health_check_enabled`, `image_icon`, `sort_priority`, ...)
+  and posts to `/api/v1/register` instead of `/api/register`. The
+  notifier translates legacy label-derived keys to canonical names
+  client-side; unknown keys are dropped before sending so STD's
+  strict pydantic validator does not reject the request.
 - Stack-name resolution: when `com.docker.compose.project` is missing,
   the notifier passes `stack_name=None` rather than splitting the
   container name on `_`.

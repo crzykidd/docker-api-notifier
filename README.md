@@ -76,6 +76,11 @@ notifier targets can be added without touching the core event loop.
 
 ### Service Tracker Dashboard
 
+> **Requires STD v0.5.0 or later.** Starting in notifier v0.3.0, the
+> notifier posts to STD's `/api/v1/register` endpoint using STD's
+> canonical schema. Earlier STD versions do not expose that endpoint
+> and will return 404.
+
 | Variable          | Required | Description |
 |-------------------|----------|-------------|
 | `STD_URL`         | Yes (for STD) | Base URL of the STD instance, e.g. `http://std.example.com:8815`. |
@@ -124,11 +129,14 @@ applies its own defaults for anything you don't.
 | `dockernotifier.std.icon`                   | Icon filename (e.g. `sonarr.svg`). |
 | `dockernotifier.std.sort.priority`          | Numeric sort order within a group. |
 
-> **Note on label naming.** Today STD accepts both legacy variants like
-> `dockernotifier.std.internal.health` and canonical forms. Starting in
-> notifier v0.3.0 + STD v0.5.0, the notifier emits canonical key names on
-> the wire to a new `/api/v1/register` endpoint. Old notifier deployments
-> continue to work against STD's compat shim until STD v0.6.0.
+> **Note on label naming.** Container label keys (the
+> `dockernotifier.std.*` keys you set on watched containers) are
+> unchanged. Internally, notifier v0.3.0 translates them to STD's
+> canonical wire-format keys (`group_name`, `image_icon`,
+> `internal_health_check_enabled`, `sort_priority`, ...) before
+> posting to STD's `/api/v1/register` endpoint. Boolean and integer
+> coercion happens at the same boundary, so the values STD receives
+> are actual `bool`/`int` rather than strings.
 
 ---
 
