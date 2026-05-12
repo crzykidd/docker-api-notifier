@@ -27,7 +27,7 @@ logger.addHandler(console_handler)
 
 # === Settings ===
 logger.debug("main.py is running")
-STD_REFRESH_SECONDS = int(os.environ.get("STD_REFRESH_SECONDS", "60"))  # Default to 60 minutes
+STD_REFRESH_SECONDS = int(os.environ.get("STD_REFRESH_SECONDS", "60"))  # Default to 60 seconds
 NOTIFIER_TRIGGERS = {
     "dns": {"boot", "start"},
     "service-tracker-dashboard": {
