@@ -27,6 +27,7 @@ config.py
 *.pid
 *.sock
 config/
+config-dev/
 images/
 docker-compose.override.yml
 
