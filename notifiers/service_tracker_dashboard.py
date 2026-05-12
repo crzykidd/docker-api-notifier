@@ -16,6 +16,16 @@ def post_with_retry(endpoint, payload, headers):
 
 
 def register(**kwargs):
+    """
+    Register a container with the Service Tracker Dashboard.
+
+    Receives the common notifier base kwargs contract (see PRD §3.3)
+    plus all stripped `dockernotifier.std.*` labels. The merged dict
+    is forwarded as the JSON payload to STD's register endpoint.
+
+    The wire format is updated to STD's canonical schema in a later
+    session (SESSION 07). This session keeps the legacy wire format.
+    """
     dashboard_url = os.environ.get("STD_URL")
     api_token = os.environ.get("STD_API_TOKEN")
 
