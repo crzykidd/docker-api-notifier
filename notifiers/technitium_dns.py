@@ -15,7 +15,7 @@ def _do_dns_update(dns_url, params):
     return response
 
 
-def register(*, container_fqdn, zone, value, trigger_reason="event", **kwargs):
+def register(*, container_fqdn, zone, value, **kwargs):
     """
     Register a CNAME with Technitium DNS.
 
@@ -36,8 +36,9 @@ def register(*, container_fqdn, zone, value, trigger_reason="event", **kwargs):
     container_name = kwargs.get("container_name", "<unknown>")
     docker_host = kwargs.get("docker_host", "<unknown>")
     stack_name = kwargs.get("stack_name")
+    action = kwargs.get("action", "<unknown>")
 
-    logger.info(f'DNS notifier triggered for "{container_name}" due to "{trigger_reason}"')
+    logger.info(f'DNS notifier triggered for "{container_name}" due to "{action}"')
 
     timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z")
     if stack_name:

@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DNS notifier now raises on HTTP 4xx/5xx responses from Technitium
   and retries transient failures. Previously HTTP errors were silently
   logged as successes.
+- DNS notifier's "triggered for" log line now reports the actual Docker
+  action (e.g. `start`, `boot`, `refresh`) instead of the literal string
+  `"event"`. Operators with log filters or alerts that grep specifically
+  for `due to "event"` will need to update them.
 
 ### Removed
 - Unused `trigger_reason` parameter from the DNS notifier's `register()`
