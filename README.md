@@ -196,8 +196,13 @@ Volumes:
 - Each enabled notifier is a Python module under `notifiers/` exposing a
   `register(...)` function. Adding a new notifier target is a matter of
   dropping a new module and wiring it into the dispatch in `main.py`.
-- The STD notifier uses retry-with-backoff (`tenacity`) for transient
-  network failures.
+- Both notifiers share a single retry-with-backoff policy
+  (`tenacity`, exposed via the `with_retry` decorator in `retry.py`) for
+  transient network failures: 3 attempts, exponential backoff 2s/4s/8s
+  capped at 10s, retries on `requests.RequestException`. The DNS
+  notifier also calls `raise_for_status()` so HTTP 4xx/5xx responses
+  from Technitium trigger retries instead of being logged as
+  successes.
 
 ---
 

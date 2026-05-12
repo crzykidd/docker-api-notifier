@@ -173,7 +173,7 @@ Tags shipped on `main`: v0.1.0 → v0.2.3.
 
 | ID  | Area                  | Issue                                                                                                  |
 |-----|-----------------------|--------------------------------------------------------------------------------------------------------|
-| N1  | DNS notifier          | No retry on transient failure. STD notifier uses `tenacity`; DNS doesn't. Asymmetric.                  |
+| N1  | DNS notifier          | **Resolved in v0.3.0.** No retry on transient failure. STD notifier uses `tenacity`; DNS doesn't. Asymmetric. Fixed by extracting a shared `with_retry` decorator (`retry.py`) consumed by both notifiers. DNS also now calls `raise_for_status()` so HTTP 4xx/5xx trigger retries instead of being silently logged as successes. |
 | N2  | DNS notifier          | `trigger_reason` parameter accepted but never used.                                                    |
 | N3  | Logging               | Log handler setup duplicated across `main.py`, `notifiers/technitium_dns.py`, and `notifiers/service_tracker_dashboard.py`. |
 | N4  | Event handling        | `"refresh"` is in `NOTIFIER_TRIGGERS["service-tracker-dashboard"]` but not in `watched_actions`, so it never fires from the event stream. The periodic loop is the only path that uses it. |

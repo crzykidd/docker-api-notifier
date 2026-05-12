@@ -2,18 +2,13 @@ import os
 import requests
 from datetime import datetime
 import json
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from logging_setup import get_logger
+from retry import with_retry
 
 logger = get_logger("std_notifier")
 
 
-@retry(
-    reraise=True,
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-    retry=retry_if_exception_type(requests.RequestException)
-)
+@with_retry
 def post_with_retry(endpoint, payload, headers):
     response = requests.post(endpoint, json=payload, headers=headers)
     response.raise_for_status()

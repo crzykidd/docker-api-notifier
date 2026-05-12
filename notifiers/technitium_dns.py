@@ -3,8 +3,16 @@ import requests
 import urllib.parse
 from datetime import datetime
 from logging_setup import get_logger
+from retry import with_retry
 
 logger = get_logger("dns_notifier")
+
+
+@with_retry
+def _do_dns_update(dns_url, params):
+    response = requests.get(dns_url, params=params)
+    response.raise_for_status()
+    return response
 
 
 def register(container_fqdn, zone, value, container_name, docker_host, stack_name=None, trigger_reason="event"):
@@ -34,7 +42,7 @@ def register(container_fqdn, zone, value, container_name, docker_host, stack_nam
     }
 
     try:
-        response = requests.get(dns_url, params=params)
+        response = _do_dns_update(dns_url, params)
         logger.info(f'DNS update response for {container_fqdn}: {response.text}')
-    except Exception as e:
-        logger.error(f'DNS update failed for {container_name}: {e}')
+    except requests.RequestException as e:
+        logger.error(f'DNS update failed for {container_name} after retries: {e}')

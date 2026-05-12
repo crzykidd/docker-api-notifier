@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   env vars with a single `NOTIFIER_LOG_TO_STDOUT`. Default unchanged
   (console on). Operators who previously set `DNS_LOG_TO_STDOUT=0` or
   `STD_LOG_TO_STDOUT=0` should switch to `NOTIFIER_LOG_TO_STDOUT=0`.
+- DNS notifier now raises on HTTP 4xx/5xx responses from Technitium
+  and retries transient failures. Previously HTTP errors were silently
+  logged as successes.
 
 ### Removed
 - Unused `trigger_reason` parameter from the DNS notifier's `register()`
