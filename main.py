@@ -59,55 +59,49 @@ def handle_container_event(container, docker_host, action):
     if not notifier_list_raw:
         return
     notifier_list = [n.strip() for n in notifier_list_raw.split(",") if n.strip()]
-    container_name = container.name
 
-    # Metadata
-    container_hostname = labels.get("dockernotifier.dns.containerhostname")
-    zone_label = labels.get("dockernotifier.dns.containerzone")
-    docker_domain = labels.get("dockernotifier.dns.dockerdomain")
-    container_fqdn = f"{container_hostname}.{zone_label}" if container_hostname and zone_label else None
-    stack_name = labels.get("com.docker.compose.project")
-    if not stack_name and "_" in container.name:
-        stack_name = container.name.split('_')[0]
+    base_kwargs = {
+        "container_name": container.name,
+        "container_id": container.id,
+        "docker_host": docker_host,
+        "docker_status": container.attrs["State"]["Status"],
+        "image_name": container.attrs["Config"]["Image"],
+        "stack_name": labels.get("com.docker.compose.project"),
+        "started_at": container.attrs["State"]["StartedAt"],
+        "action": action,
+    }
 
-    logger.info(f"[MATCH] Container {action.upper()}: {container_name}")
+    logger.info(f"[MATCH] Container {action.upper()}: {container.name}")
 
-    if action in {"boot", "start"} and "dns" in notifier_list:
+    if action in NOTIFIER_TRIGGERS["dns"] and "dns" in notifier_list:
+        container_hostname = labels.get("dockernotifier.dns.containerhostname")
+        zone_label = labels.get("dockernotifier.dns.containerzone")
+        docker_domain = labels.get("dockernotifier.dns.dockerdomain")
+        container_fqdn = (
+            f"{container_hostname}.{zone_label}"
+            if container_hostname and zone_label
+            else None
+        )
+
         if container_fqdn and docker_domain and zone_label:
-            logger.info(f"DNS notifier triggered for {container_name} on {action}")
+            logger.info(f"DNS notifier triggered for {container.name} on {action}")
             technitium_dns.register(
+                **base_kwargs,
                 container_fqdn=container_fqdn,
                 zone=zone_label,
                 value=f"{docker_host}.{docker_domain}",
-                container_name=container_name,
-                docker_host=docker_host,
-                stack_name=stack_name
             )
         else:
-            logger.warning(f"Missing DNS label info for {container_name}, skipping DNS registration")
+            logger.warning(f"Missing DNS label info for {container.name}, skipping DNS registration")
 
     if "service-tracker-dashboard" in notifier_list and action in NOTIFIER_TRIGGERS["service-tracker-dashboard"]:
-        logger.info(f"STD notifier triggered for {container_name} on {action}")
-        # Dynamically extract all dockernotifier.std.* labels
-        std_labels = {
+        logger.info(f"STD notifier triggered for {container.name} on {action}")
+        std_extras = {
             key.replace("dockernotifier.std.", ""): value
             for key, value in labels.items()
             if key.startswith("dockernotifier.std.")
         }
-
-        # Add base metadata (you can omit or include as needed)
-        std_labels.update({
-            "container_name": container_name,
-            "docker_host": docker_host,
-            "container_id": container.id,
-            "docker_status": container.attrs["State"]["Status"],
-            "image_name": container.attrs["Config"]["Image"],
-            "stack_name": stack_name,
-            "started_at": container.attrs["State"]["StartedAt"]
-        })
-
-        # Send to notifier
-        service_tracker_dashboard.register(**std_labels)
+        service_tracker_dashboard.register(**base_kwargs, **std_extras)
 
 def main():
     client = docker.from_env()

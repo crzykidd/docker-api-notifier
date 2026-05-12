@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   modules. No more duplicated handler configuration across files.
 - Shared retry helper. DNS notifier now retries with backoff using the
   same policy as the STD notifier.
+- Common kwargs contract: every notifier module's `register()`
+  receives a documented base set of kwargs (`container_name`,
+  `container_id`, `docker_host`, `docker_status`, `image_name`,
+  `stack_name`, `started_at`, `action`). Notifier-specific extras
+  are layered on top.
 
 ### Changed
 - STD notifier emits canonical key names (`host`, `group`,
