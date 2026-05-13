@@ -27,8 +27,10 @@ config.py
 *.pid
 *.sock
 config/
+config-dev/
 images/
 docker-compose.override.yml
+docker-compose-dev.yml
 
 # Virtual environments
 venv/

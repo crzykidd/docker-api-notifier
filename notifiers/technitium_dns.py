@@ -2,37 +2,43 @@ import os
 import requests
 import urllib.parse
 from datetime import datetime
-import logging
-from logging.handlers import RotatingFileHandler
+from logging_setup import get_logger
+from retry import with_retry
 
-NOTIFIER_LOG_FILE = "/config/notifier.log"
-
-# === Logging Setup ===
-logger = logging.getLogger("dns_notifier")
-if not logger.handlers:
-    log_formatter = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s')
-    log_handler = RotatingFileHandler(
-        NOTIFIER_LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=1
-    )
-    log_handler.setFormatter(log_formatter)
-    logger.setLevel(logging.INFO)
-    logger.addHandler(log_handler)
-
-    # Optional: also log to console if running standalone
-    if os.environ.get("DNS_LOG_TO_STDOUT", "1") == "1":
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(log_formatter)
-        logger.addHandler(console_handler)
+logger = get_logger("dns_notifier")
 
 
-def register(container_fqdn, zone, value, container_name, docker_host, stack_name=None, trigger_reason="event"):
+@with_retry
+def _do_dns_update(dns_url, params):
+    response = requests.get(dns_url, params=params)
+    response.raise_for_status()
+    return response
+
+
+def register(*, container_fqdn, zone, value, **kwargs):
+    """
+    Register a CNAME with Technitium DNS.
+
+    DNS-specific (required): container_fqdn, zone, value.
+
+    Accepts the common notifier base kwargs contract via **kwargs;
+    container_name, docker_host, and stack_name are read out for
+    log lines and the record comment. Unrecognised kwargs are
+    ignored, which keeps the signature forward-compatible as the
+    contract grows.
+    """
     dns_url = os.environ.get("DNS_SERVER_URL")
     token = os.environ.get("DNS_SERVER_API_TOKEN")
     if not dns_url or not token:
         logger.error("Missing DNS_SERVER_URL or DNS_SERVER_API_TOKEN")
         return
 
-    logger.info(f'DNS notifier triggered for "{container_name}" due to "{trigger_reason}"')
+    container_name = kwargs.get("container_name", "<unknown>")
+    docker_host = kwargs.get("docker_host", "<unknown>")
+    stack_name = kwargs.get("stack_name")
+    action = kwargs.get("action", "<unknown>")
+
+    logger.info(f'DNS notifier triggered for "{container_name}" due to "{action}"')
 
     timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z")
     if stack_name:
@@ -52,7 +58,7 @@ def register(container_fqdn, zone, value, container_name, docker_host, stack_nam
     }
 
     try:
-        response = requests.get(dns_url, params=params)
+        response = _do_dns_update(dns_url, params)
         logger.info(f'DNS update response for {container_fqdn}: {response.text}')
-    except Exception as e:
-        logger.error(f'DNS update failed for {container_name}: {e}')
+    except requests.RequestException as e:
+        logger.error(f'DNS update failed for {container_name} after retries: {e}')
