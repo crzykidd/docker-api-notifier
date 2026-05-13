@@ -254,10 +254,10 @@ Tags shipped on `main`: v0.1.0 → v0.2.3.
 |-----|-----------------------|--------------------------------------------------------------------------------------------------------|
 | N1  | DNS notifier          | **Resolved in v0.3.0.** No retry on transient failure. STD notifier uses `tenacity`; DNS doesn't. Asymmetric. Fixed by extracting a shared `with_retry` decorator (`retry.py`) consumed by both notifiers. DNS also now calls `raise_for_status()` so HTTP 4xx/5xx trigger retries instead of being silently logged as successes. |
 | N2  | DNS notifier          | **Resolved in v0.3.0.** `trigger_reason` parameter accepted but never used. Removed from the `register()` signature; the trigger log line now reads `action` from the common kwargs contract instead, so it reports the real Docker action (`start`, `boot`, `refresh`) rather than the literal default `"event"`. |
-| N3  | Logging               | Log handler setup duplicated across `main.py`, `notifiers/technitium_dns.py`, and `notifiers/service_tracker_dashboard.py`. |
-| N4  | Event handling        | `"refresh"` is in `NOTIFIER_TRIGGERS["service-tracker-dashboard"]` but not in `watched_actions`, so it never fires from the event stream. The periodic loop is the only path that uses it. |
+| N3  | Logging               | **Resolved in v0.3.0.** Log handler setup duplicated across `main.py`, `notifiers/technitium_dns.py`, and `notifiers/service_tracker_dashboard.py`. |
+| N4  | Event handling        | **Resolved in v0.3.0.** `"refresh"` is in `NOTIFIER_TRIGGERS["service-tracker-dashboard"]` but not in `watched_actions`, so it never fires from the event stream. The periodic loop is the only path that uses it. |
 | N5  | Stack-name fallback   | **Resolved in v0.3.0.** When `com.docker.compose.project` is missing, falls back to splitting `container.name` on `_`. Fragile and wrong for any container whose name contains an underscore for unrelated reasons. Fixed by removing the fallback entirely: `stack_name` is now `None` when the label is absent, and each notifier handles that case explicitly. |
-| N6  | Comments              | `STD_REFRESH_SECONDS` default comment in `main.py` says "60 minutes" but the value is 60 seconds.      |
+| N6  | Comments              | **Resolved in v0.3.0.** `STD_REFRESH_SECONDS` default comment in `main.py` says "60 minutes" but the value is 60 seconds.      |
 | N7  | Wire contract         | **Resolved in v0.3.0.** STD notifier now translates its working kwargs dict into STD v0.5.0's canonical schema (`host`, `group_name`, `image_icon`, `internal_health_check_enabled`, `external_health_check_enabled`, `sort_priority`, ...) and posts to `/api/v1/register`. Bool and int coercion happens at the notifier boundary; unknown keys are dropped client-side so STD's strict pydantic validator does not reject the request. |
 
 ### 5.3 Minor housekeeping (not blocking v0.3.0 but worth doing)
@@ -269,16 +269,16 @@ Tags shipped on `main`: v0.1.0 → v0.2.3.
 
 ## 6. v0.3.0 — Cleanup Release
 
-**Cannot ship until STD v0.5.0 is released**, because v0.3.0 starts
-emitting canonical key names against `/api/v1/register`. STD v0.5.0
-introduces that endpoint.
+**Required STD v0.5.0 to ship first**, because v0.3.0 emits canonical
+key names against `/api/v1/register`. STD v0.5.0 introduced that
+endpoint.
 
 ### 6.1 Goals
 
-- Resolve every issue in §5.2.
-- Establish a small set of internal modules that future notifier targets
+- Resolved every issue in §5.2.
+- Established a small set of internal modules that future notifier targets
   can rely on (logging, retry helper).
-- Switch STD notifier to canonical key names + `/api/v1/register`.
+- Switched STD notifier to canonical key names + `/api/v1/register`.
 
 ### 6.2 Behavior changes visible to operators
 

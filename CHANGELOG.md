@@ -7,9 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> Targeting v0.3.0. **Requires STD v0.5.0 or later.** This release
-> emits payloads to `/api/v1/register` using STD's canonical schema;
-> earlier STD versions do not expose that endpoint.
+---
+
+## [0.3.0] — 2026-05-12
 
 ### Added
 - Shared logging setup module consumed by `main.py` and all notifier
@@ -101,7 +101,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.3.0
 [0.2.3]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.2.3
 [0.2.2]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.2.2
 [0.2.1]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.2.1
