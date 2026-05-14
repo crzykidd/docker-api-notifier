@@ -12,6 +12,34 @@ logger = get_logger("main")
 logger.debug("main.py is running")
 STD_REFRESH_SECONDS = int(os.environ.get("STD_REFRESH_SECONDS", "60"))  # Default to 60 seconds
 
+
+def _parse_bool_env(name, default=False):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    normalized = raw.strip().lower()
+    if normalized in ("true", "1", "yes"):
+        return True
+    if normalized in ("false", "0", "no", ""):
+        return False
+    logger.warning(
+        f"Unrecognized boolean value for {name}={raw!r}; treating as off"
+    )
+    return False
+
+
+# When True, the STD notifier fires for every running container on this
+# host regardless of whether the container has the
+# `dockernotifier.notifiers=service-tracker-dashboard` opt-in label.
+# Scope is intentionally limited to STD — other notifiers (DNS) still
+# require explicit per-container opt-in.
+STD_REPORT_ALL_CONTAINERS = _parse_bool_env("STD_REPORT_ALL_CONTAINERS")
+if STD_REPORT_ALL_CONTAINERS:
+    logger.info(
+        "STD_REPORT_ALL_CONTAINERS is on — every running container on this host "
+        "will be reported to STD regardless of opt-in label"
+    )
+
 # Real Docker events the notifier subscribes to.
 WATCHED_DOCKER_ACTIONS = frozenset({
     "start", "stop", "die", "pause", "unpause",
@@ -54,11 +82,22 @@ def get_host_name():
 
 
 def handle_container_event(container, docker_host, action):
-    labels = container.attrs["Config"]["Labels"]
+    labels = container.attrs["Config"]["Labels"] or {}
     notifier_list_raw = labels.get("dockernotifier.notifiers", "").strip()
-    if not notifier_list_raw:
-        return
     notifier_list = [n.strip() for n in notifier_list_raw.split(",") if n.strip()]
+
+    std_via_label = "service-tracker-dashboard" in notifier_list
+    std_via_env = STD_REPORT_ALL_CONTAINERS
+    std_should_fire = (
+        (std_via_label or std_via_env)
+        and action in NOTIFIER_TRIGGERS["service-tracker-dashboard"]
+    )
+    dns_should_fire = (
+        "dns" in notifier_list and action in NOTIFIER_TRIGGERS["dns"]
+    )
+
+    if not std_should_fire and not dns_should_fire:
+        return
 
     base_kwargs = {
         "container_name": container.name,
@@ -73,7 +112,7 @@ def handle_container_event(container, docker_host, action):
 
     logger.info(f"[MATCH] Container {action.upper()}: {container.name}")
 
-    if action in NOTIFIER_TRIGGERS["dns"] and "dns" in notifier_list:
+    if dns_should_fire:
         container_hostname = labels.get("dockernotifier.dns.containerhostname")
         zone_label = labels.get("dockernotifier.dns.containerzone")
         docker_domain = labels.get("dockernotifier.dns.dockerdomain")
@@ -94,7 +133,12 @@ def handle_container_event(container, docker_host, action):
         else:
             logger.warning(f"Missing DNS label info for {container.name}, skipping DNS registration")
 
-    if "service-tracker-dashboard" in notifier_list and action in NOTIFIER_TRIGGERS["service-tracker-dashboard"]:
+    if std_should_fire:
+        if std_via_env and not std_via_label:
+            logger.debug(
+                f"STD notifier firing for {container.name} via "
+                f"STD_REPORT_ALL_CONTAINERS (no opt-in label)"
+            )
         logger.info(f"STD notifier triggered for {container.name} on {action}")
         std_extras = {
             key.replace("dockernotifier.std.", ""): value

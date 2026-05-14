@@ -81,10 +81,11 @@ notifier targets can be added without touching the core event loop.
 > canonical schema. Earlier STD versions do not expose that endpoint
 > and will return 404.
 
-| Variable          | Required | Description |
-|-------------------|----------|-------------|
-| `STD_URL`         | Yes (for STD) | Base URL of the STD instance, e.g. `http://std.example.com:8815`. |
-| `STD_API_TOKEN`   | Yes (for STD) | Bearer token configured on the STD side. |
+| Variable                     | Required | Default | Description |
+|------------------------------|----------|---------|-------------|
+| `STD_URL`                    | Yes (for STD) | —       | Base URL of the STD instance, e.g. `http://std.example.com:8815`. |
+| `STD_API_TOKEN`              | Yes (for STD) | —       | Bearer token configured on the STD side. |
+| `STD_REPORT_ALL_CONTAINERS`  | No       | `false` | When truthy (`true`, `1`, `yes` — case-insensitive), report **every running container on this host** to STD regardless of whether it has the `dockernotifier.notifiers=service-tracker-dashboard` opt-in label. Default off preserves per-container opt-in behavior. **Only affects STD** — the DNS notifier still requires explicit per-container opt-in via labels. Unrecognized values log a warning at startup and are treated as off. |
 
 If a notifier's required env vars are missing, that notifier silently
 no-ops — the container won't fail to start. This is intentional so you

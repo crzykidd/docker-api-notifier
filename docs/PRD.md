@@ -9,6 +9,7 @@
 | Version | Date       | Changes |
 |---------|------------|---------|
 | 0.1     | 2026-05-10 | Initial PRD. Documents current shipped behavior at v0.2.3 and the planned v0.3.0 cleanup. |
+| 0.2     | 2026-05-13 | v0.3.1 — STD reporting opt-out mode via `STD_REPORT_ALL_CONTAINERS` env var. §1.3 softened to reflect per-host opt-out scope. |
 
 ---
 
@@ -18,11 +19,12 @@
 2. [Scope](#2-scope)
 3. [Architecture](#3-architecture)
 4. [Configuration Model](#4-configuration-model)
-5. [Current State (v0.2.3)](#5-current-state-v023)
+5. [Current State (v0.3.0)](#5-current-state-v030)
 6. [v0.3.0 — Cleanup Release](#6-v030--cleanup-release)
-7. [Versioning, Branches, and Releases](#7-versioning-branches-and-releases)
-8. [Cross-Repo Coordination](#8-cross-repo-coordination)
-9. [Open Questions](#9-open-questions)
+7. [v0.3.1 — STD Reporting Opt-Out Mode](#7-v031--std-reporting-opt-out-mode)
+8. [Versioning, Branches, and Releases](#8-versioning-branches-and-releases)
+9. [Cross-Repo Coordination](#9-cross-repo-coordination)
+10. [Open Questions](#10-open-questions)
 
 ---
 
@@ -49,8 +51,13 @@ independently against current container metadata.
 
 ### 1.3 Design principles
 
-- **Opt-in per container.** No labels means no notification. Run safely
-  alongside containers that don't know or care about this notifier.
+- **Opt-in per container by default.** No labels means no notification —
+  run safely alongside containers that don't know or care about this
+  notifier. STD reporting can be flipped to opt-out on a per-host basis
+  via the `STD_REPORT_ALL_CONTAINERS` env var (see §7); other notifier
+  targets remain per-container opt-in regardless, because they create
+  external side effects (DNS records, etc.) that should not fire for
+  containers that didn't ask.
 - **Independent notifier modules.** Each downstream system is its own
   module under `notifiers/` with its own auth, retry, and payload shape.
 - **No state.** No database, no cache, no queue. Everything is derived
@@ -233,9 +240,11 @@ Environment variables are documented in the `README.md`.
 
 ---
 
-## 5. Current State (v0.2.3)
+## 5. Current State (v0.3.0)
 
-Tags shipped on `main`: v0.1.0 → v0.2.3.
+Tags shipped on `main`: v0.1.0 → v0.3.0 (v0.3.0 released 2026-05-12).
+All issues listed in §5.2 below were resolved in v0.3.0. The next
+release in flight is v0.3.1 (see §7).
 
 ### 5.1 What works today
 
@@ -308,11 +317,81 @@ window.
   these easier later, but none ship in v0.3.0.
 - Multi-host coordination.
 - A config file. Env vars + labels remain the only inputs.
-- Test suite. Worth doing eventually (see §9), not in v0.3.0.
+- Test suite. Worth doing eventually (see §10), not in v0.3.0.
 
 ---
 
-## 7. Versioning, Branches, and Releases
+## 7. v0.3.1 — STD Reporting Opt-Out Mode
+
+A small, additive release that introduces a single env var,
+`STD_REPORT_ALL_CONTAINERS`, which flips STD reporting from
+per-container opt-in to per-host opt-out.
+
+### 7.1 Goals
+
+- Let operators who want a complete inventory of a host's running
+  containers in STD avoid labelling every container individually.
+- Preserve today's behavior as the default: unset env var → unchanged.
+
+### 7.2 Scope
+
+- **STD only.** The env var affects only the STD notifier dispatch.
+  The DNS notifier (and any future notifier that creates external
+  side effects) continues to require explicit per-container opt-in
+  via `dockernotifier.notifiers=...`.
+- **Per-host, not per-container.** The env var is read once at
+  startup on each notifier instance. There is intentionally no
+  per-container override label — that would defeat the purpose.
+- **Running containers only.** Behavior matches existing dispatch:
+  the boot pass and periodic refresh loop iterate
+  `client.containers.list()`. Stopped containers are not retroactively
+  reported.
+
+### 7.3 Semantics
+
+- `STD_REPORT_ALL_CONTAINERS` truthy values: `true`, `1`, `yes`
+  (case-insensitive). Anything else (including unrecognized strings
+  like `maybe`) is treated as off; unrecognized values log a single
+  warning at startup.
+- When on, every running container on the host is reported to STD
+  on boot, on watched Docker events, and on each periodic refresh
+  tick — regardless of whether the container's
+  `dockernotifier.notifiers` label includes `service-tracker-dashboard`
+  (or even exists at all).
+- `dockernotifier.std.*` labels on individual containers are still
+  honored. Containers without those labels are reported with the
+  minimum information available; STD's wire contract makes most
+  fields optional and applies its own defaults.
+- A container with `dockernotifier.notifiers=dns` only (no STD opt-in)
+  AND the env var set: STD fires (env-var path) **and** DNS fires
+  (label path). The env var adds STD; it does not subtract anything.
+
+### 7.4 Wire contract
+
+Unchanged. STD receives identical `/api/v1/register` payloads
+regardless of whether the trigger came from a label or from the env
+var. STD has no way to distinguish the two paths and does not need to.
+
+### 7.5 Design principle reconciliation
+
+§1.3's "opt-in per container" principle is softened, not abandoned.
+With the env var unset (default), per-container opt-in remains the
+only path. The env var is an explicit, deliberate per-host stance
+taken by the operator running the notifier instance — it does not
+change what other operators experience.
+
+### 7.6 Out of scope for v0.3.1
+
+- Per-container opt-out (a label like `dockernotifier.std.skip=true`
+  to suppress reporting even when the env var is set). Defer until
+  there is a concrete request.
+- Changing DNS opt-in semantics.
+- Reporting non-running containers.
+- Network/port capture (planned for v0.3.2).
+
+---
+
+## 8. Versioning, Branches, and Releases
 
 - `main` is the default branch and the source of truth for releases.
 - All work happens on `dev`. PR `dev` → `main` when ready to release.
@@ -326,18 +405,18 @@ window.
 
 ---
 
-## 8. Cross-Repo Coordination
+## 9. Cross-Repo Coordination
 
 This project is paired with
 [service-tracker-dashboard](https://github.com/crzykidd/service-tracker-dashboard).
 
-### 8.1 Contract ownership
+### 9.1 Contract ownership
 
 STD owns the wire contract for the register endpoint. The notifier is
 a producer — it sends what STD documents. Wire-format changes start in
 STD; the notifier follows.
 
-### 8.2 Release ordering for the v0.5.0 / v0.3.0 cycle
+### 9.2 Release ordering for the v0.5.0 / v0.3.0 cycle
 
 1. STD v0.5.0 ships with `/api/v1/register` (canonical keys) and the
    compat shim on `/api/register` (legacy keys, deprecated).
@@ -349,7 +428,7 @@ Operators must upgrade the notifier to v0.3.0+ before STD v0.6.0.
 
 ---
 
-## 9. Open Questions
+## 10. Open Questions
 
 - **Test coverage.** No tests exist today. Worth investing in a small
   suite that fakes the Docker client and asserts dispatch behavior?

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- New env var `STD_REPORT_ALL_CONTAINERS`. When set to a truthy value
+  (`true`, `1`, `yes` — case-insensitive), the notifier reports every
+  running container on the host to STD, regardless of whether the
+  container has the `dockernotifier.notifiers=service-tracker-dashboard`
+  opt-in label. Default off — existing per-container opt-in behavior
+  is unchanged for operators who don't set the variable. **Only STD
+  dispatch is affected**: the DNS notifier still requires explicit
+  per-container opt-in via labels, because DNS records are an external
+  side effect that shouldn't fire for containers that didn't ask.
+  Unrecognized values (e.g. `maybe`) log a warning at startup and are
+  treated as off. The wire payload to STD is identical whether the
+  trigger came from a label or from this env var.
+
 ### Fixed
 - Docker event loop no longer logs `Failed to handle <action> event for
   None: Resource ID was not provided` errors. The container ID is now
