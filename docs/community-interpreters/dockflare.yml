@@ -1,0 +1,26 @@
+name: dockflare
+description: |
+  Reads Dockflare labels and emits exposure observations for
+  Cloudflare Tunnel ingress. Dockflare always implies HTTPS.
+
+match:
+  label_key: 'dockflare.enable'
+  label_value_equals: 'true'
+
+extract:
+  hostname:
+    from_label: 'dockflare.hostname'
+  auth_policy:
+    from_label: 'dockflare.access.policy'
+    default: null
+  auth_group:
+    from_label: 'dockflare.access.group'
+    default: null
+
+emit:
+  layer: dockflare
+  hostname: '{hostname}'
+  tls: true
+  auth: 'cloudflare_access:{auth_policy}'
+  details:
+    auth_group: '{auth_group}'
