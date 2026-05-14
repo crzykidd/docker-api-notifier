@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Docker event loop no longer logs `Failed to handle <action> event for
+  None: Resource ID was not provided` errors. The container ID is now
+  read from `event["Actor"]["ID"]` (newer Docker daemons no longer
+  populate the legacy top-level `id` field), non-container events
+  (network/volume/service) are filtered out before lookup, and the
+  expected `NotFound` raised when querying an already-removed container
+  on a `destroy` event is swallowed silently.
+
 ---
 
 ## [0.3.0] — 2026-05-12
