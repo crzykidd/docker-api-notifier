@@ -5,6 +5,7 @@ from notifiers import technitium_dns, service_tracker_dashboard
 import threading
 import time
 from logging_setup import get_logger
+import interpreter_loader
 
 logger = get_logger("main")
 
@@ -39,6 +40,14 @@ if STD_REPORT_ALL_CONTAINERS:
         "STD_REPORT_ALL_CONTAINERS is on — every running container on this host "
         "will be reported to STD regardless of opt-in label"
     )
+
+# Debug-only: re-load interpreters on every event instead of once at
+# startup. Not for production use; intended for iterating on YAML
+# files without bouncing the notifier.
+INTERPRETER_RELOAD_ON_EACH_EVENT = _parse_bool_env("INTERPRETER_RELOAD_ON_EACH_EVENT")
+
+# Loaded once at startup. See `interpreter_loader.py`.
+INTERPRETER_LOAD_RESULT = interpreter_loader.load_interpreters()
 
 # Real Docker events the notifier subscribes to.
 WATCHED_DOCKER_ACTIONS = frozenset({
@@ -196,7 +205,26 @@ def handle_container_event(container, docker_host, action):
             for key, value in labels.items()
             if key.startswith("dockernotifier.std.")
         }
+        std_extras["exposure_observations"] = _run_interpreters(labels)
         service_tracker_dashboard.register(**base_kwargs, **std_extras)
+
+
+def _run_interpreters(labels):
+    """
+    Run all loaded interpreters against a container's labels.
+
+    Returns:
+      - a list of ExposureObservation dicts (possibly empty) if any
+        interpreters were loaded successfully;
+      - None if no interpreters are loaded — STD treats null as
+        "no update; preserve existing exposure rows."
+    """
+    global INTERPRETER_LOAD_RESULT
+    if INTERPRETER_RELOAD_ON_EACH_EVENT:
+        INTERPRETER_LOAD_RESULT = interpreter_loader.load_interpreters()
+    if not INTERPRETER_LOAD_RESULT.any_loaded:
+        return None
+    return interpreter_loader.evaluate(INTERPRETER_LOAD_RESULT.interpreters, labels)
 
 def main():
     client = docker.from_env()

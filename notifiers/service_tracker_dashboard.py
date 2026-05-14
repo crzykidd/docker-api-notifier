@@ -32,6 +32,12 @@ _PASSTHROUGH = {
     # v0.3.2: network/port capture fields. Already in canonical shape;
     # consumed by STD v0.6.0+.
     "networks", "exposed_ports", "published_ports",
+    # v0.4.0: interpreter outputs. List of ExposureObservation dicts
+    # (possibly empty); consumed by STD v0.7.0+. An empty list means
+    # "interpreters ran and nothing matched" (STD clears exposure
+    # rows). The notifier omits the field entirely when no
+    # interpreters are loaded (STD preserves existing rows).
+    "exposure_observations",
 }
 
 # Keys in the canonical schema that need type coercion from string.

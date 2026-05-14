@@ -1,0 +1,77 @@
+# Heavily-annotated template for a new interpreter.
+#
+# Copy this file, replace `<placeholders>`, and mount it into the
+# notifier container at /app/interpreters/user/<name>.yml.
+
+# Required. Identifier used for logging and for the wire `layer`
+# value if the interpreter doesn't override it. Should match the
+# tool the interpreter reads.
+name: <tool>
+
+# Optional. Human-readable summary. Shown in startup logs.
+description: |
+  <one or two sentences naming the labels this interpreter reads
+  and what it emits>
+
+# The match step decides whether this interpreter fires for a given
+# container. Pick exactly ONE of the two flavors.
+match:
+  # Flavor 1: regex-match a label KEY. Use named captures
+  # (?P<name>...) for any variable portion you want to reference
+  # in the extract step. If the regex matches multiple distinct
+  # label keys on the same container, the interpreter fires once
+  # per match (e.g. a container with multiple Traefik routers
+  # produces multiple observations).
+  any_label_key_matches: '<regex>'
+
+  # Flavor 2: a fixed label key with an optional exact-value match.
+  # Use this for tools that have a single "enable" label.
+  # label_key: '<exact.label.key>'
+  # label_value_equals: 'true'   # optional; case-insensitive
+
+# The extract step reads the labels you care about. Each entry
+# defines a local variable that the emit step can reference as
+# `{name}`.
+extract:
+  <local_var>:
+    # The label key to read. May contain {captures} from a
+    # regex-match — substituted before lookup.
+    from_label: '<exact.label.key or template>'
+
+    # Optional. Regex applied to the label VALUE. If set, the
+    # extracted value is either the named capture group below or
+    # the entire match.
+    # value_pattern: '<regex over the label value>'
+    # capture: '<named group from value_pattern>'
+
+    # Optional. Coerce the string label value into a typed value.
+    # Supported: bool, int.
+    # coerce: bool
+
+    # Optional. Used when the label is missing or extraction fails.
+    # default: false
+
+# The emit step assembles one ExposureObservation. Keys become
+# fields on the resulting observation; string values may reference
+# `{local_var}` placeholders from the extract step.
+#
+# Null propagation: if any {var} in a string template resolves to
+# null, the whole field becomes null. For a bare placeholder
+# (`'{var}'`), the value is preserved verbatim (bool stays bool,
+# int stays int).
+emit:
+  # Required. Identifies which "layer" the observation came from.
+  # STD uses this to disambiguate sources when multiple
+  # interpreters fire on the same container.
+  layer: <tool>
+
+  # Standard fields. All optional; include whichever the tool
+  # actually tells you about.
+  hostname: '{<local_var>}'
+  tls: '{<local_var>}'
+  # path_prefix: ...
+  # auth: ...
+
+  # Free-form bag for tool-specific extras.
+  details:
+    <key>: '{<local_var>}'

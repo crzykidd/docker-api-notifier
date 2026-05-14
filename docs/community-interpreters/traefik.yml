@@ -1,0 +1,27 @@
+name: traefik
+description: |
+  Reads Traefik router labels and emits one exposure observation per
+  router defined on the container.
+
+match:
+  any_label_key_matches: 'traefik\.http\.routers\.(?P<router>[^.]+)\.rule'
+
+extract:
+  hostname:
+    from_label: 'traefik.http.routers.{router}.rule'
+    value_pattern: 'Host\(`(?P<host>[^`]+)`\)'
+    capture: 'host'
+  tls:
+    from_label: 'traefik.http.routers.{router}.tls'
+    coerce: bool
+    default: false
+  entrypoints:
+    from_label: 'traefik.http.routers.{router}.entrypoints'
+    default: null
+
+emit:
+  layer: traefik
+  hostname: '{hostname}'
+  tls: '{tls}'
+  details:
+    entrypoints: '{entrypoints}'
