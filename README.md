@@ -80,6 +80,12 @@ notifier targets can be added without touching the core event loop.
 > notifier posts to STD's `/api/v1/register` endpoint using STD's
 > canonical schema. Earlier STD versions do not expose that endpoint
 > and will return 404.
+>
+> **Notifier v0.3.2 requires STD v0.6.0 or later.** Starting in v0.3.2
+> the notifier emits `networks`, `exposed_ports`, and `published_ports`
+> on every STD payload. STD v0.5.x's strict pydantic validator rejects
+> unknown keys and will return 422 for these payloads — upgrade STD
+> first.
 
 | Variable                     | Required | Default | Description |
 |------------------------------|----------|---------|-------------|
@@ -138,6 +144,12 @@ applies its own defaults for anything you don't.
 > posting to STD's `/api/v1/register` endpoint. Boolean and integer
 > coercion happens at the same boundary, so the values STD receives
 > are actual `bool`/`int` rather than strings.
+
+> **Network and port data.** As of notifier v0.3.2, every STD payload
+> also carries `networks`, `exposed_ports`, and `published_ports`
+> read straight from the Docker API. No new labels or env vars are
+> required to enable this — it is automatic for every container
+> reported to STD. Requires STD v0.6.0+.
 
 ---
 

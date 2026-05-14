@@ -81,6 +81,54 @@ def get_host_name():
         return os.uname()[1]
 
 
+def _extract_networks(container_attrs):
+    network_settings = container_attrs.get("NetworkSettings") or {}
+    networks_raw = network_settings.get("Networks") or {}
+    return [
+        {"name": name, "aliases": (data.get("Aliases") or []) if isinstance(data, dict) else []}
+        for name, data in networks_raw.items()
+    ]
+
+
+def _extract_exposed_ports(container_attrs):
+    config = container_attrs.get("Config") or {}
+    exposed = config.get("ExposedPorts") or {}
+    return list(exposed.keys())
+
+
+def _extract_published_ports(container_attrs):
+    network_settings = container_attrs.get("NetworkSettings") or {}
+    ports_raw = network_settings.get("Ports") or {}
+    out = []
+    for port_key, bindings in ports_raw.items():
+        if not bindings:
+            continue
+        try:
+            container_port_str, protocol = port_key.split("/", 1)
+            container_port = int(container_port_str)
+        except (ValueError, AttributeError):
+            logger.debug(f"Skipping malformed port key {port_key!r}")
+            continue
+        for binding in bindings:
+            if not isinstance(binding, dict):
+                continue
+            host_port_raw = binding.get("HostPort")
+            try:
+                host_port = int(host_port_raw)
+            except (TypeError, ValueError):
+                logger.debug(
+                    f"Skipping binding with non-integer HostPort={host_port_raw!r} for {port_key}"
+                )
+                continue
+            out.append({
+                "container_port": container_port,
+                "protocol": protocol,
+                "host_ip": binding.get("HostIp", "") or "",
+                "host_port": host_port,
+            })
+    return out
+
+
 def handle_container_event(container, docker_host, action):
     labels = container.attrs["Config"]["Labels"] or {}
     notifier_list_raw = labels.get("dockernotifier.notifiers", "").strip()
@@ -108,6 +156,9 @@ def handle_container_event(container, docker_host, action):
         "stack_name": labels.get("com.docker.compose.project"),
         "started_at": container.attrs["State"]["StartedAt"],
         "action": action,
+        "networks": _extract_networks(container.attrs),
+        "exposed_ports": _extract_exposed_ports(container.attrs),
+        "published_ports": _extract_published_ports(container.attrs),
     }
 
     logger.info(f"[MATCH] Container {action.upper()}: {container.name}")

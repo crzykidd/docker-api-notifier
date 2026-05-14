@@ -20,6 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Unrecognized values (e.g. `maybe`) log a warning at startup and are
   treated as off. The wire payload to STD is identical whether the
   trigger came from a label or from this env var.
+- STD payloads now include `networks`, `exposed_ports`, and
+  `published_ports` read directly from the Docker API. `networks` is a
+  list of `{"name", "aliases"}` objects, one per Docker network the
+  container is on. `exposed_ports` is a list of `"<port>/<proto>"`
+  strings from the container's `ExposedPorts` config. `published_ports`
+  is a list of `{"container_port", "protocol", "host_ip", "host_port"}`
+  objects, one per port binding. Empty values are emitted as explicit
+  empty lists so STD can distinguish "nothing to report" from "not yet
+  reported". No new env vars or labels — capture is automatic for every
+  container reported to STD. **Requires STD v0.6.0 or later**; STD
+  v0.5.x's strict validator will reject payloads carrying these keys.
 
 ### Fixed
 - Docker event loop no longer logs `Failed to handle <action> event for

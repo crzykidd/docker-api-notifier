@@ -10,6 +10,7 @@
 |---------|------------|---------|
 | 0.1     | 2026-05-10 | Initial PRD. Documents current shipped behavior at v0.2.3 and the planned v0.3.0 cleanup. |
 | 0.2     | 2026-05-13 | v0.3.1 — STD reporting opt-out mode via `STD_REPORT_ALL_CONTAINERS` env var. §1.3 softened to reflect per-host opt-out scope. |
+| 0.3     | 2026-05-13 | v0.3.2 — capture container network membership and port information from the Docker API and forward to STD. §3.3 base kwargs contract grows three rows (`networks`, `exposed_ports`, `published_ports`). |
 
 ---
 
@@ -19,12 +20,13 @@
 2. [Scope](#2-scope)
 3. [Architecture](#3-architecture)
 4. [Configuration Model](#4-configuration-model)
-5. [Current State (v0.3.0)](#5-current-state-v030)
+5. [Current State (v0.3.1)](#5-current-state-v031)
 6. [v0.3.0 — Cleanup Release](#6-v030--cleanup-release)
 7. [v0.3.1 — STD Reporting Opt-Out Mode](#7-v031--std-reporting-opt-out-mode)
-8. [Versioning, Branches, and Releases](#8-versioning-branches-and-releases)
-9. [Cross-Repo Coordination](#9-cross-repo-coordination)
-10. [Open Questions](#10-open-questions)
+8. [v0.3.2 — Network & Port Capture](#8-v032--network--port-capture)
+9. [Versioning, Branches, and Releases](#9-versioning-branches-and-releases)
+10. [Cross-Repo Coordination](#10-cross-repo-coordination)
+11. [Open Questions](#11-open-questions)
 
 ---
 
@@ -184,6 +186,15 @@ arguments guaranteed present:
 | `stack_name` | Optional[str] | `com.docker.compose.project` label or `None` |
 | `started_at` | str | ISO timestamp from container state |
 | `action` | str | The action that triggered this call (e.g. "start", "boot", "refresh") |
+| `networks` | list[dict] | One entry per Docker network the container is on: `{"name": str, "aliases": [str, ...]}`. Empty list if the container is on no networks. Added in v0.3.2. |
+| `exposed_ports` | list[str] | Container's `ExposedPorts` config as a list of `"<port>/<proto>"` strings (e.g. `"5173/tcp"`). Empty list if none. Added in v0.3.2. |
+| `published_ports` | list[dict] | One entry per `(container_port, host_port)` mapping: `{"container_port": int, "protocol": str, "host_ip": str, "host_port": int}`. Empty list if no published ports. Added in v0.3.2. |
+
+The last three (`networks`, `exposed_ports`, `published_ports`) live
+in `base_kwargs` because they are inherent container facts read off
+the Docker API, not per-target extras derived from labels. STD is
+the only consumer today; other notifiers receive them via
+`**kwargs` and may ignore them.
 
 Modules may additionally receive notifier-specific extras (typically
 from stripped label namespaces). A module reading any extra should
@@ -240,11 +251,13 @@ Environment variables are documented in the `README.md`.
 
 ---
 
-## 5. Current State (v0.3.0)
+## 5. Current State (v0.3.1)
 
-Tags shipped on `main`: v0.1.0 → v0.3.0 (v0.3.0 released 2026-05-12).
-All issues listed in §5.2 below were resolved in v0.3.0. The next
-release in flight is v0.3.1 (see §7).
+Tags shipped on `main`: v0.1.0 → v0.3.1. v0.3.0 (2026-05-12) resolved
+every issue listed in §5.2 below. v0.3.1 followed as a small additive
+release introducing the `STD_REPORT_ALL_CONTAINERS` env var for
+per-host opt-out reporting to STD (see §7). The next release in
+flight is v0.3.2 — network & port capture (see §8).
 
 ### 5.1 What works today
 
@@ -317,7 +330,7 @@ window.
   these easier later, but none ship in v0.3.0.
 - Multi-host coordination.
 - A config file. Env vars + labels remain the only inputs.
-- Test suite. Worth doing eventually (see §10), not in v0.3.0.
+- Test suite. Worth doing eventually (see §11), not in v0.3.0.
 
 ---
 
@@ -391,7 +404,95 @@ change what other operators experience.
 
 ---
 
-## 8. Versioning, Branches, and Releases
+## 8. v0.3.2 — Network & Port Capture
+
+An additive release that forwards container network membership and
+port information from the Docker API to STD. STD v0.6.0 consumes
+these fields; STD v0.5.x will reject the payload (strict pydantic
+validation), so STD v0.6.0 must be deployed first.
+
+### 8.1 Goals
+
+- Capture inherent container facts the notifier already has access to
+  via the Docker API: which networks the container is on, what ports
+  it exposes, and what ports it publishes to the host.
+- Forward all three to STD as canonical fields so STD's UI can render
+  badges/links without re-reading the Docker socket itself.
+- Stay pure-capture. No interpretation, no derived semantics. STD
+  v0.7.0 will layer interpretation on top.
+
+### 8.2 Captured fields
+
+Added to the base kwargs contract (see §3.3 table):
+
+- `networks` — list of `{"name": str, "aliases": [str, ...]}`. One
+  entry per Docker network the container is on. Read from
+  `container.attrs["NetworkSettings"]["Networks"]`. Aliases is an
+  empty list (not null) when a network has no aliases.
+- `exposed_ports` — list of `"<port>/<proto>"` strings. Read from
+  `container.attrs["Config"]["ExposedPorts"]`. Just the keys.
+- `published_ports` — list of `{"container_port": int, "protocol":
+  str, "host_ip": str, "host_port": int}`. One entry per
+  `(container_port, host_port)` binding. Read from
+  `container.attrs["NetworkSettings"]["Ports"]`. Entries with a null
+  binding list (exposed-but-not-published) are skipped.
+
+### 8.3 Coercion at the boundary
+
+- `host_port` arrives from Docker as a string (`"5173"`); coerced to
+  `int`.
+- `container_port` is parsed from the `"<port>/<proto>"` key and
+  cast to `int`.
+- `protocol` is the string after the slash (typically `"tcp"` or
+  `"udp"`), kept as-is.
+
+### 8.4 Empty vs. missing
+
+Empty values are emitted as explicit empty lists, not null. This
+lets STD's UI distinguish "we know there's nothing" from "the
+notifier hasn't reported yet" (where the field is absent / null).
+
+- Container on no networks (`network_mode: none`): `networks: []`.
+- Container with no exposed ports: `exposed_ports: []`.
+- Container with no published ports: `published_ports: []`.
+
+### 8.5 Wire contract
+
+Three new fields on the canonical payload to `/api/v1/register`.
+The STD notifier's `_PASSTHROUGH` set covers them; no translation
+needed because they are already in canonical shape.
+
+### 8.6 Scope of consumption
+
+Only the STD notifier consumes these fields today. The DNS notifier
+receives them through `**kwargs` and ignores them. Storing them in
+`base_kwargs` rather than as STD-specific extras keeps them
+available for any future notifier (e.g. a Traefik-config emitter)
+without rerunning the Docker API call.
+
+### 8.7 Out of scope for v0.3.2
+
+- Network IPs, gateways, MAC addresses, or any per-network detail
+  beyond name and aliases.
+- Any interpretation of network names (e.g. "container on `proxy`
+  network → mark as Traefik-exposed"). That is v0.4.0 interpreter
+  work.
+- Per-host configuration of which networks to report. All networks
+  the container is on get reported.
+- Filtering or redaction. If a future operator wants it, that's a
+  separate feature.
+- Sending this data to anywhere besides STD.
+
+### 8.8 Dependencies
+
+- Hard: STD v0.6.0 must be deployed first. v0.5.x rejects unknown
+  keys.
+- Soft: notifier v0.3.1 on `main` (clean version sequencing only —
+  v0.3.2 does not depend on v0.3.1's behavior).
+
+---
+
+## 9. Versioning, Branches, and Releases
 
 - `main` is the default branch and the source of truth for releases.
 - All work happens on `dev`. PR `dev` → `main` when ready to release.
@@ -405,18 +506,18 @@ change what other operators experience.
 
 ---
 
-## 9. Cross-Repo Coordination
+## 10. Cross-Repo Coordination
 
 This project is paired with
 [service-tracker-dashboard](https://github.com/crzykidd/service-tracker-dashboard).
 
-### 9.1 Contract ownership
+### 10.1 Contract ownership
 
 STD owns the wire contract for the register endpoint. The notifier is
 a producer — it sends what STD documents. Wire-format changes start in
 STD; the notifier follows.
 
-### 9.2 Release ordering for the v0.5.0 / v0.3.0 cycle
+### 10.2 Release ordering for the v0.5.0 / v0.3.0 cycle
 
 1. STD v0.5.0 ships with `/api/v1/register` (canonical keys) and the
    compat shim on `/api/register` (legacy keys, deprecated).
@@ -426,9 +527,19 @@ STD; the notifier follows.
 
 Operators must upgrade the notifier to v0.3.0+ before STD v0.6.0.
 
+### 10.3 Release ordering for the v0.6.0 / v0.3.2 cycle
+
+1. STD v0.6.0 ships with `networks`, `exposed_ports`, and
+   `published_ports` accepted on `/api/v1/register`.
+2. Notifier v0.3.2 ships emitting those three fields.
+
+If notifier v0.3.2 is deployed against STD v0.5.x, STD's strict
+pydantic validator rejects the payload (unknown keys). Operators
+must upgrade STD before the notifier.
+
 ---
 
-## 10. Open Questions
+## 11. Open Questions
 
 - **Test coverage.** No tests exist today. Worth investing in a small
   suite that fakes the Docker client and asserts dispatch behavior?

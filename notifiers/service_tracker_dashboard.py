@@ -29,6 +29,9 @@ _PASSTHROUGH = {
     "container_name", "container_id", "docker_status", "stack_name",
     "started_at", "image_name", "internalurl", "externalurl",
     "timestamp",
+    # v0.3.2: network/port capture fields. Already in canonical shape;
+    # consumed by STD v0.6.0+.
+    "networks", "exposed_ports", "published_ports",
 }
 
 # Keys in the canonical schema that need type coercion from string.
