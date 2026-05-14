@@ -118,13 +118,19 @@ def main():
     threading.Thread(target=periodic_update_loop, args=(docker_host,), daemon=True).start()
 
     for event in client.events(decode=True):
+        if event.get("Type") != "container":
+            continue
         action = event.get("Action")
         if action not in WATCHED_DOCKER_ACTIONS:
             continue
-        container_id = event.get("id")
+        container_id = event.get("Actor", {}).get("ID") or event.get("id")
+        if not container_id:
+            continue
         try:
             container = client.containers.get(container_id)
             handle_container_event(container, docker_host, action=action)
+        except docker.errors.NotFound:
+            pass
         except Exception as e:
             logger.error(f"Failed to handle {action} event for {container_id}: {e}")
 
