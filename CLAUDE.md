@@ -1,12 +1,30 @@
 # docker-api-notifier — Claude Code Instructions
 
-## Always
+## Always — Definition of Done
 
-- After any change that affects architecture, dependencies, supported
-  notifier targets, or the wire contract with downstream consumers,
-  update `docs/PRD.md` and `README.md` accordingly.
-- After completing a phase, update `README.md` with what has been built.
-- Never leave PRD or README out of sync with the codebase.
+No change is complete until its documentation is updated **in the same
+commit as the code**. This is not optional and not deferrable:
+
+1. **CHANGELOG.md — every change, no exceptions.** Add an entry under
+   `[Unreleased]` describing what changed for the operator. A code
+   change with no CHANGELOG entry is an incomplete change.
+2. **PRD (`docs/PRD.md`) — confirm on every change.** Before
+   finishing, explicitly check whether the change touches anything the
+   PRD documents (architecture, the wire contract with STD, supported
+   notifier targets, env vars, labels, the interpreter YAML format).
+   If yes, update the PRD and bump its revision-history table. If no,
+   confirm that in your summary ("PRD reviewed, no change needed")
+   rather than silently skipping it.
+3. **README.md — when operator-facing behavior changes.** Env vars,
+   labels, deployment, interpreters: keep the README tables current.
+4. Never leave CHANGELOG, PRD, or README out of sync with the code.
+
+> **Known debt:** the PRDs and CLAUDE.md files in both this repo and
+> STD have drifted from shipped reality before. A full audit of both
+> repos' `docs/` against actual shipped state is a pending task (see
+> the matching note in STD's `CLAUDE.md`). Until that audit happens,
+> trust the code and CHANGELOG over the PRD where they disagree, and
+> flag any contradiction you notice rather than propagating it.
 
 ## Commit style
 
@@ -42,20 +60,16 @@
 
 ## Build Status
 
-Current shipped release: **v0.2.3** (latest tag on `main`)
+Current shipped release: **v0.4.0** (latest tag on `main`).
 
-Next release target: **v0.3.0** — cleanup release. Cannot ship until
-**STD v0.5.0** is released (v0.3.0 emits canonical keys against
-`/api/v1/register`, which STD v0.5.0 introduces).
+Nothing currently in flight (`[Unreleased]` in `CHANGELOG.md` is
+empty). The paired STD release for v0.4.0's features is STD v0.6.0+.
 
-- Phase 1 — Documentation baseline: IN PROGRESS
-- Phase 2 — Logging consolidation: NOT STARTED
-- Phase 3 — Shared retry helper: NOT STARTED
-- Phase 4 — Stack-name fallback fix: NOT STARTED
-- Phase 5 — `watched_actions` / `NOTIFIER_TRIGGERS` cleanup: NOT STARTED
-- Phase 6 — Drop `trigger_reason` param: NOT STARTED
-- Phase 7 — Switch to `/api/v1/register` + canonical keys: NOT STARTED
-  *(blocked until STD v0.5.0 is released)*
+> Do not maintain a per-phase checklist here — it rots (this section
+> was stale by two minor releases before this note was added). The
+> CHANGELOG `[Unreleased]` section is the live record of work in
+> flight; git tags are the record of what shipped. On release, update
+> only the "Current shipped release" line above.
 
 ## Git Workflow
 
@@ -97,14 +111,59 @@ Next release target: **v0.3.0** — cleanup release. Cannot ship until
 ## Cross-Repo Coordination
 
 This project is paired with
-[service-tracker-dashboard](https://github.com/crzykidd/service-tracker-dashboard).
-The contract is:
+[service-tracker-dashboard](https://github.com/crzykidd/service-tracker-dashboard)
+(STD). They are **two independent apps** — separate version lines,
+separate Docker images, separate release cadences. The notifier is not
+an STD component: it also drives Technitium DNS and can run with DNS
+only, STD only, or both.
 
-- **STD** owns the wire contract for the register endpoint.
-- **Notifier** is a producer — it sends what STD documents.
-- Wire-format changes start in STD. The notifier follows.
-- For v0.3.0 specifically: STD v0.5.0 must ship first; this notifier
-  release switches to canonical keys + `/api/v1/register` after.
+The two are coupled at exactly one seam: STD's `/api/v1/register` wire
+contract.
+
+- **STD owns the contract.** Its pydantic schemas define a valid
+  payload and use `extra="forbid"` — unknown keys get rejected with
+  HTTP 422, not ignored.
+- **This notifier is the producer.** It sends what STD documents. The
+  wire format lives in `notifiers/service_tracker_dashboard.py`
+  (`_to_canonical`).
+
+### The ordering rule
+
+Because STD's validator rejects unknown keys, **the schema-accepting
+side (STD) must ship before the schema-sending side (this notifier).**
+
+- Adding a field this notifier will send → STD must accept it first.
+  Ship STD's schema change, *then* ship the notifier that emits the
+  field. Shipping the notifier first means STD 422s every payload from
+  upgraded hosts.
+- A field STD wants to consume → STD can add the column/UI, but it
+  stays empty until a notifier version populates it. Feature isn't live
+  until both ship, notifier last.
+
+**Consumer leads, producer follows. STD may lead; this notifier may
+lag; this notifier must not lead the schema.**
+
+### Safe-degradation guarantee (don't break it)
+
+The notifier must keep older STD versions working:
+
+- Capture fields (`networks` / `exposed_ports` / `published_ports`)
+  and `exposure_observations` require STD v0.6.0+. They are documented
+  as such in the README.
+- `exposure_observations` semantics STD relies on: omit the field
+  entirely when no interpreters are loaded (STD reads absence as "no
+  update, preserve existing exposure rows"); send `[]` when
+  interpreters ran but nothing matched (STD reads that as "clear the
+  rows"). Do not collapse these two cases — `interpreter_loader`
+  returning `None` vs. `[]` is the distinction, and
+  `_run_interpreters` in `main.py` preserves it.
+
+### Version pairing history (informational, not the rule)
+
+- Notifier v0.3.0 switched to canonical keys + `/api/v1/register`;
+  requires STD v0.5.0+.
+- Notifier v0.4.0 added capture fields + the interpreter mechanism
+  (`exposure_observations`); requires STD v0.6.0+.
 
 ## Notifier Module Conventions
 
