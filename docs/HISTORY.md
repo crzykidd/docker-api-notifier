@@ -67,3 +67,55 @@ documented in STD's PRD and validated by a pydantic schema.
   via STD's compat shim until STD v0.6.0.
 - Notifier v0.3.0+ deployments are required before upgrading any STD
   instance to v0.6.0.
+
+---
+
+## On-disk configuration introduced (v0.4.0)
+
+Through v0.3.x, the notifier had no on-disk inputs other than the
+Docker socket itself — configuration was entirely env vars and
+container labels. v0.4.0 introduces the first on-disk inputs: YAML
+**interpreter files** loaded at startup from
+`/app/interpreters/builtin/` (baked into the image) and
+`/app/interpreters/user/` (operator-mounted, optional). The image
+ships two builtins (`traefik.yml`, `dockflare.yml`) that fire
+automatically for any container reported to STD.
+
+### Why
+
+Translating third-party label schemes (Traefik routers, Dockflare
+hostnames, ...) into STD's `exposure_observations` shape in hard-coded
+Python would have required a notifier fork per supported tool.
+Expressing the match/extract/emit logic as small YAML files keeps
+operator-facing extension out of the Python codebase and lets the
+community contribute interpreters without rebuilding the image.
+
+### What changed structurally
+
+- New module `interpreter_loader.py` with `load_interpreters()`
+  (called once at startup) and `evaluate()` (called per dispatch).
+- New on-disk locations: `/app/interpreters/builtin/`,
+  `/app/interpreters/user/`.
+- New community-reference directory `docs/community-interpreters/`
+  holding example YAMLs (explicitly non-curated; PRs welcome).
+- PRD §1.3 design principles softened: "no state" became "no runtime
+  state" (interpreter YAML is configuration, not per-event memory);
+  "all configuration via env vars" became "env vars + labels + YAML
+  for interpreters."
+
+### Coordination with STD
+
+The interpreter mechanism emits `exposure_observations` on every
+STD payload. STD's strict pydantic validator rejects unknown keys,
+so **STD v0.6.0 must ship before notifier v0.4.0**. The same
+ordering applies to the network/port capture fields (`networks`,
+`exposed_ports`, `published_ports`) which also shipped in v0.4.0.
+
+### Note on version numbering
+
+The v0.4.0 release bundled work originally scoped for three separate
+releases — v0.3.1 (STD opt-out env var), v0.3.2 (network/port
+capture), and v0.4.0 (interpreters). v0.3.1 and v0.3.2 were never
+cut as git tags; `git tag --list` jumps directly from `v0.3.0` to
+`v0.4.0`. PRD revision-history rows 0.2 and 0.3 document the planning
+work; row 0.4 documents the consolidation.

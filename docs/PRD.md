@@ -148,7 +148,11 @@ startup (see §1.3 and §11).
   authentication, and payload shape.
 - **Common concerns** that should live outside individual notifier
   modules: logging configuration, retry helpers, label-to-payload
-  mapping. (Today these are partially duplicated; see §5.)
+  mapping. Logging (`logging_setup.py`) and retry (`retry.py`) were
+  unified in v0.3.0 and are consumed by both notifier modules.
+  Label-to-payload translation still lives inside each notifier
+  module — see `notifiers/service_tracker_dashboard.py:_to_canonical`
+  for STD's mapping.
 - **`interpreter_loader.py`** — loads and evaluates the YAML
   interpreters introduced in v0.4.0. Runs once at startup to load
   YAMLs from `/app/interpreters/builtin/` and `/app/interpreters/user/`
