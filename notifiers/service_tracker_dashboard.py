@@ -33,7 +33,7 @@ _PASSTHROUGH = {
     # consumed by STD v0.6.0+.
     "networks", "exposed_ports", "published_ports",
     # v0.4.0: interpreter outputs. List of ExposureObservation dicts
-    # (possibly empty); consumed by STD v0.7.0+. An empty list means
+    # (possibly empty); consumed by STD v0.6.0+. An empty list means
     # "interpreters ran and nothing matched" (STD clears exposure
     # rows). The notifier omits the field entirely when no
     # interpreters are loaded (STD preserves existing rows).
