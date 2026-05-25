@@ -14,7 +14,9 @@
       "Bash(docker run *)",
       "Bash(python -c *)",
       "Bash(pip install *)",
-      "Bash(ruff *)"
+      "Bash(ruff *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   },
   "hooks": {
