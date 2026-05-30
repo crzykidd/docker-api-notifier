@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-05-29
+
 ### Fixed
 - DNS-only deployments no longer flood the log with a "Service Tracker
   Dashboard not enabled" line on every container, every refresh cycle.
@@ -184,7 +186,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.1
 [0.4.0]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.0
 [0.3.0]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.3.0
 [0.2.3]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.2.3

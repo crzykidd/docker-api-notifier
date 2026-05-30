@@ -14,6 +14,7 @@
 | 0.4     | 2026-05-14 | v0.4.0 — YAML interpreter mechanism, STD opt-out env var (`STD_REPORT_ALL_CONTAINERS`), network/ports capture, and design-principle softening. Originally planned as v0.3.1 / v0.3.2 / v0.4.0; consolidated into a single v0.4.0 release. §1.3 softens "no state" and "env vars only" to reflect YAML configuration. §3 architecture grows an interpreter component. §4 documents the interpreter loader paths and volume-mount convention. §11 fully documents the YAML format and wire emission. |
 | 0.5     | 2026-05-29 | Optional `HOST_NAME_OVERRIDE` env var for the DNS CNAME target. No PRD section changes — env vars are documented in the README per §4. Addresses environments (e.g. WSL/Docker Desktop) where the detected host name differs from the DNS name. |
 | 0.6     | 2026-05-29 | STD dispatch and the periodic refresh loop are now gated on STD being configured. §3.2 event-flow notes the loop starts only when `STD_URL`/`STD_API_TOKEN` are set; DNS-only deployments log the disabled state once instead of per-event. |
+| 0.7     | 2026-05-29 | Release prep for v0.4.1. §5 "Current State" bumped to v0.4.1; no behavioral content change — rows 0.5/0.6 already documented the shipped fixes. |
 
 ---
 
@@ -23,7 +24,7 @@
 2. [Scope](#2-scope)
 3. [Architecture](#3-architecture)
 4. [Configuration Model](#4-configuration-model)
-5. [Current State (v0.4.0)](#5-current-state-v040)
+5. [Current State (v0.4.1)](#5-current-state-v041)
 6. [v0.3.0 — Cleanup Release](#6-v030--cleanup-release)
 7. [Delivered in v0.4.0](#7-delivered-in-v040)
 8. [Versioning, Branches, and Releases](#8-versioning-branches-and-releases)
@@ -319,12 +320,15 @@ See §11 for the YAML format and emission semantics.
 
 ---
 
-## 5. Current State (v0.4.0)
+## 5. Current State (v0.4.1)
 
-Tags shipped on `main`: v0.1.0 → v0.4.0. v0.3.0 (2026-05-12) resolved
+Tags shipped on `main`: v0.1.0 → v0.4.1. v0.3.0 (2026-05-12) resolved
 every issue listed in §5.2 below. v0.4.0 (2026-05-14) shipped the
 work originally scoped across three separate releases
 (v0.3.1 / v0.3.2 / v0.4.0); the consolidation is summarized in §7.
+v0.4.1 (2026-05-29) is a DNS/logging fix release — a DNS host-name
+override (`HOST_NAME_OVERRIDE`) and a fix for STD-unconfigured log
+flooding. It does not change the STD wire contract.
 
 ### 5.1 What works today
 

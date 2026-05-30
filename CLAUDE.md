@@ -60,10 +60,13 @@ commit as the code**. This is not optional and not deferrable:
 
 ## Build Status
 
-Current shipped release: **v0.4.0** (latest tag on `main`).
+Current shipped release: **v0.4.1** (latest tag on `main`).
 
 Nothing currently in flight (`[Unreleased]` in `CHANGELOG.md` is
-empty). The paired STD release for v0.4.0's features is STD v0.6.0+.
+empty). v0.4.1 is a DNS/logging fix release (DNS host-name override,
+STD-unconfigured log-flood fix) and does not change the STD wire
+contract — the paired STD release for the capture/interpreter features
+remains STD v0.6.0+.
 
 > Do not maintain a per-phase checklist here — it rots (this section
 > was stale by two minor releases before this note was added). The
