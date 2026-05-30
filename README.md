@@ -66,6 +66,7 @@ notifier targets can be added without touching the core event loop.
 | `TZ`                      | No       | `UTC`   | Timezone for log timestamps. |
 | `STD_REFRESH_SECONDS`     | No       | `60`    | Periodic re-scan interval in **seconds**. |
 | `NOTIFIER_LOG_TO_STDOUT`  | No       | `1`     | Set to `0` to silence console output. Logs still go to `/config/notifier.log`. Replaces the per-notifier `DNS_LOG_TO_STDOUT` and `STD_LOG_TO_STDOUT` vars, which are no longer recognized. |
+| `HOST_NAME_OVERRIDE`      | No       | *host hostname* | Overrides the host name used as the DNS CNAME target (`<host>.<dockerdomain>`). If unset, the notifier reads the host's hostname from the `/etc/hostname` mount (falling back to the container's own hostname). Set this if running in WSL or other environments where the host has a different name than your DNS entries expect. |
 
 ### Technitium DNS
 

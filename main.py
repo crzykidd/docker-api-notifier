@@ -83,6 +83,9 @@ def periodic_update_loop(docker_host):
 
 
 def get_host_name():
+    override = os.environ.get("HOST_NAME_OVERRIDE")
+    if override and override.strip():
+        return override.strip()
     try:
         with open("/etc/host_hostname", "r") as f:
             return f.read().strip()

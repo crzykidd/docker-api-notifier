@@ -12,6 +12,7 @@
 | 0.2     | 2026-05-13 | v0.3.1 — STD reporting opt-out mode via `STD_REPORT_ALL_CONTAINERS` env var. §1.3 softened to reflect per-host opt-out scope. |
 | 0.3     | 2026-05-13 | v0.3.2 — capture container network membership and port information from the Docker API and forward to STD. §3.3 base kwargs contract grows three rows (`networks`, `exposed_ports`, `published_ports`). |
 | 0.4     | 2026-05-14 | v0.4.0 — YAML interpreter mechanism, STD opt-out env var (`STD_REPORT_ALL_CONTAINERS`), network/ports capture, and design-principle softening. Originally planned as v0.3.1 / v0.3.2 / v0.4.0; consolidated into a single v0.4.0 release. §1.3 softens "no state" and "env vars only" to reflect YAML configuration. §3 architecture grows an interpreter component. §4 documents the interpreter loader paths and volume-mount convention. §11 fully documents the YAML format and wire emission. |
+| 0.5     | 2026-05-29 | Optional `HOST_NAME_OVERRIDE` env var for the DNS CNAME target. No PRD section changes — env vars are documented in the README per §4. Addresses environments (e.g. WSL/Docker Desktop) where the detected host name differs from the DNS name. |
 
 ---
 

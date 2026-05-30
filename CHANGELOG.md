@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- New env var `HOST_NAME_OVERRIDE`. Sets the host name used as the DNS
+  CNAME target (`<host>.<dockerdomain>`), overriding the auto-detected
+  hostname. Useful in WSL or other environments where the host's
+  hostname differs from the name your DNS entries should point at
+  (e.g. Docker Desktop reports the LinuxKit/WSL VM name rather than the
+  real host). Unset preserves the existing auto-detection behavior.
+
 ## [0.4.0] — 2026-05-14
 
 ### Added
