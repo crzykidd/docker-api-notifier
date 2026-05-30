@@ -243,6 +243,12 @@ services:
       - STD_API_TOKEN=TOKENFROMSTDSERVER
       - TZ=America/Los_Angeles
       - STD_REFRESH_SECONDS=60
+      # Override the host name used as the DNS CNAME target (<host>.<dockerdomain>).
+      # If unset, the notifier uses the host's hostname (read from the
+      # /etc/hostname mount below). Set this if running in WSL or other
+      # environments where the host has a different name than your DNS
+      # entries expect.
+#      - HOST_NAME_OVERRIDE=wsl-host 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/hostname:/etc/host_hostname:ro
