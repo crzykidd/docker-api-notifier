@@ -41,6 +41,18 @@ if STD_REPORT_ALL_CONTAINERS:
         "will be reported to STD regardless of opt-in label"
     )
 
+# Whether the STD notifier has the env vars it needs. Checked once at
+# startup so STD dispatch and the periodic refresh loop (which exists
+# only to re-report containers to STD) can be skipped entirely when STD
+# is not configured, instead of logging a "not enabled" line on every
+# event. DNS-only deployments are the common case for this.
+STD_CONFIGURED = service_tracker_dashboard.is_configured()
+if not STD_CONFIGURED:
+    logger.info(
+        "STD_URL or STD_API_TOKEN is missing — disabling STD integration "
+        "(no STD reporting, no periodic refresh loop)"
+    )
+
 # Debug-only: re-load interpreters on every event instead of once at
 # startup. Not for production use; intended for iterating on YAML
 # files without bouncing the notifier.
@@ -149,7 +161,8 @@ def handle_container_event(container, docker_host, action):
     std_via_label = "service-tracker-dashboard" in notifier_list
     std_via_env = STD_REPORT_ALL_CONTAINERS
     std_should_fire = (
-        (std_via_label or std_via_env)
+        STD_CONFIGURED
+        and (std_via_label or std_via_env)
         and action in NOTIFIER_TRIGGERS["service-tracker-dashboard"]
     )
     dns_should_fire = (
@@ -241,7 +254,13 @@ def main():
         except Exception as e:
             logger.error(f"Failed to process container {container.name} on boot: {e}")
 
-    threading.Thread(target=periodic_update_loop, args=(docker_host,), daemon=True).start()
+    # The periodic loop re-reports containers to STD; it does nothing for
+    # DNS (which only triggers on boot/start). Skip it entirely when STD
+    # is not configured.
+    if STD_CONFIGURED:
+        threading.Thread(target=periodic_update_loop, args=(docker_host,), daemon=True).start()
+    else:
+        logger.info("Periodic refresh loop not started — STD integration disabled")
 
     for event in client.events(decode=True):
         if event.get("Type") != "container":

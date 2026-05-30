@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- DNS-only deployments no longer flood the log with a "Service Tracker
+  Dashboard not enabled" line on every container, every refresh cycle.
+  When `STD_URL` or `STD_API_TOKEN` is missing, the notifier now logs a
+  single line at startup that STD integration is disabled, skips the
+  periodic refresh loop entirely (it only ever served STD), and does
+  not attempt STD dispatch on subsequent events.
+
 ### Added
 - New env var `HOST_NAME_OVERRIDE`. Sets the host name used as the DNS
   CNAME target (`<host>.<dockerdomain>`), overriding the auto-detected

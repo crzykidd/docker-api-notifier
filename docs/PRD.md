@@ -13,6 +13,7 @@
 | 0.3     | 2026-05-13 | v0.3.2 — capture container network membership and port information from the Docker API and forward to STD. §3.3 base kwargs contract grows three rows (`networks`, `exposed_ports`, `published_ports`). |
 | 0.4     | 2026-05-14 | v0.4.0 — YAML interpreter mechanism, STD opt-out env var (`STD_REPORT_ALL_CONTAINERS`), network/ports capture, and design-principle softening. Originally planned as v0.3.1 / v0.3.2 / v0.4.0; consolidated into a single v0.4.0 release. §1.3 softens "no state" and "env vars only" to reflect YAML configuration. §3 architecture grows an interpreter component. §4 documents the interpreter loader paths and volume-mount convention. §11 fully documents the YAML format and wire emission. |
 | 0.5     | 2026-05-29 | Optional `HOST_NAME_OVERRIDE` env var for the DNS CNAME target. No PRD section changes — env vars are documented in the README per §4. Addresses environments (e.g. WSL/Docker Desktop) where the detected host name differs from the DNS name. |
+| 0.6     | 2026-05-29 | STD dispatch and the periodic refresh loop are now gated on STD being configured. §3.2 event-flow notes the loop starts only when `STD_URL`/`STD_API_TOKEN` are set; DNS-only deployments log the disabled state once instead of per-event. |
 
 ---
 
@@ -168,11 +169,17 @@ startup (see §1.3 and §11).
 2. Docker event subscription — events whose `Action` is in
    `watched_actions` are processed live.
 3. Periodic loop — every `STD_REFRESH_SECONDS` (default 60s), every
-   running container is reprocessed with `action="refresh"`.
+   running container is reprocessed with `action="refresh"`. Started
+   only when STD is configured (see below).
 
 The periodic loop exists for resilience: if the notifier missed an
 event (network blip, container crash mid-event), the next refresh pass
-catches it.
+catches it. Because `refresh` is an STD-only trigger (DNS fires only on
+`boot`/`start`), the loop is started only when STD is configured
+(`STD_URL` and `STD_API_TOKEN` both set). On a DNS-only deployment the
+notifier logs one line at startup that STD is disabled, does not start
+the loop, and skips STD dispatch on every event — rather than logging a
+"not enabled" line per container per pass.
 
 ### 3.3 Notifier Module Contract
 
