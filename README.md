@@ -41,7 +41,9 @@ every Docker host without it touching things you didn't ask it to touch.
 2. Subscribes to the Docker event stream for ongoing changes (`start`,
    `stop`, `die`, `pause`, `unpause`, `destroy`, `kill`, `update`).
 3. Re-scans every running container on a periodic interval as a
-   self-healing measure (default every 60 seconds).
+   self-healing measure (default every 60 seconds). This loop only runs
+   when STD is configured — it exists to re-report containers to STD,
+   and does nothing for DNS-only deployments.
 
 For each event, it reads the container's labels and dispatches to whichever
 notifiers the container has opted in to via `dockernotifier.notifiers`.
@@ -66,6 +68,7 @@ notifier targets can be added without touching the core event loop.
 | `TZ`                      | No       | `UTC`   | Timezone for log timestamps. |
 | `STD_REFRESH_SECONDS`     | No       | `60`    | Periodic re-scan interval in **seconds**. |
 | `NOTIFIER_LOG_TO_STDOUT`  | No       | `1`     | Set to `0` to silence console output. Logs still go to `/config/notifier.log`. Replaces the per-notifier `DNS_LOG_TO_STDOUT` and `STD_LOG_TO_STDOUT` vars, which are no longer recognized. |
+| `HOST_NAME_OVERRIDE`      | No       | *host hostname* | Overrides the host name used as the DNS CNAME target (`<host>.<dockerdomain>`). If unset, the notifier reads the host's hostname from the `/etc/hostname` mount (falling back to the container's own hostname). Set this if running in WSL or other environments where the host has a different name than your DNS entries expect. |
 
 ### Technitium DNS
 
@@ -95,9 +98,12 @@ notifier targets can be added without touching the core event loop.
 | `STD_REPORT_ALL_CONTAINERS`  | No       | `false` | When truthy (`true`, `1`, `yes` — case-insensitive), report **every running container on this host** to STD regardless of whether it has the `dockernotifier.notifiers=service-tracker-dashboard` opt-in label. Default off preserves per-container opt-in behavior. **Only affects STD** — the DNS notifier still requires explicit per-container opt-in via labels. Unrecognized values log a warning at startup and are treated as off. |
 | `INTERPRETER_RELOAD_ON_EACH_EVENT` | No       | `false` | Debug-only. When truthy, re-reads YAML interpreters from disk on every dispatch instead of once at startup. Use while iterating on a new YAML; do not leave on in production. |
 
-If a notifier's required env vars are missing, that notifier silently
-no-ops — the container won't fail to start. This is intentional so you
-can run the same image with only DNS, only STD, or both.
+If a notifier's required env vars are missing, that notifier no-ops —
+the container won't fail to start. This is intentional so you can run
+the same image with only DNS, only STD, or both. When STD's env vars
+(`STD_URL` / `STD_API_TOKEN`) are absent the notifier logs a single
+line at startup noting STD is disabled, skips the periodic refresh
+loop, and does not attempt STD dispatch on any event.
 
 ---
 
@@ -237,6 +243,12 @@ services:
       - STD_API_TOKEN=TOKENFROMSTDSERVER
       - TZ=America/Los_Angeles
       - STD_REFRESH_SECONDS=60
+      # Override the host name used as the DNS CNAME target (<host>.<dockerdomain>).
+      # If unset, the notifier uses the host's hostname (read from the
+      # /etc/hostname mount below). Set this if running in WSL or other
+      # environments where the host has a different name than your DNS
+      # entries expect.
+#      - HOST_NAME_OVERRIDE=wsl-host 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/hostname:/etc/host_hostname:ro

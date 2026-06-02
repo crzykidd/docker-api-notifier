@@ -3,7 +3,7 @@ YAML interpreter loader and evaluator for docker-api-notifier.
 
 Interpreters read labels written by third-party tools (Traefik,
 Dockflare, etc.) and emit structured exposure observations that the
-notifier forwards to STD. See PRD §12 for the full design and YAML
+notifier forwards to STD. See PRD §11 for the full design and YAML
 format reference.
 
 Public surface:

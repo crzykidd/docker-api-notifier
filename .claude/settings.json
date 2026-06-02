@@ -14,7 +14,23 @@
       "Bash(docker run *)",
       "Bash(python -c *)",
       "Bash(pip install *)",
-      "Bash(ruff *)"
+      "Bash(ruff *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Grep|Glob|Regex",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/vexp-guard.sh",
+            "timeout": 3000
+          }
+        ]
+      }
     ]
   }
 }

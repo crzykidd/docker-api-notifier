@@ -12,6 +12,9 @@
 | 0.2     | 2026-05-13 | v0.3.1 — STD reporting opt-out mode via `STD_REPORT_ALL_CONTAINERS` env var. §1.3 softened to reflect per-host opt-out scope. |
 | 0.3     | 2026-05-13 | v0.3.2 — capture container network membership and port information from the Docker API and forward to STD. §3.3 base kwargs contract grows three rows (`networks`, `exposed_ports`, `published_ports`). |
 | 0.4     | 2026-05-14 | v0.4.0 — YAML interpreter mechanism, STD opt-out env var (`STD_REPORT_ALL_CONTAINERS`), network/ports capture, and design-principle softening. Originally planned as v0.3.1 / v0.3.2 / v0.4.0; consolidated into a single v0.4.0 release. §1.3 softens "no state" and "env vars only" to reflect YAML configuration. §3 architecture grows an interpreter component. §4 documents the interpreter loader paths and volume-mount convention. §11 fully documents the YAML format and wire emission. |
+| 0.5     | 2026-05-29 | Optional `HOST_NAME_OVERRIDE` env var for the DNS CNAME target. No PRD section changes — env vars are documented in the README per §4. Addresses environments (e.g. WSL/Docker Desktop) where the detected host name differs from the DNS name. |
+| 0.6     | 2026-05-29 | STD dispatch and the periodic refresh loop are now gated on STD being configured. §3.2 event-flow notes the loop starts only when `STD_URL`/`STD_API_TOKEN` are set; DNS-only deployments log the disabled state once instead of per-event. |
+| 0.7     | 2026-05-29 | Release prep for v0.4.1. §5 "Current State" bumped to v0.4.1; no behavioral content change — rows 0.5/0.6 already documented the shipped fixes. |
 
 ---
 
@@ -21,7 +24,7 @@
 2. [Scope](#2-scope)
 3. [Architecture](#3-architecture)
 4. [Configuration Model](#4-configuration-model)
-5. [Current State (v0.4.0)](#5-current-state-v040)
+5. [Current State (v0.4.1)](#5-current-state-v041)
 6. [v0.3.0 — Cleanup Release](#6-v030--cleanup-release)
 7. [Delivered in v0.4.0](#7-delivered-in-v040)
 8. [Versioning, Branches, and Releases](#8-versioning-branches-and-releases)
@@ -148,7 +151,11 @@ startup (see §1.3 and §11).
   authentication, and payload shape.
 - **Common concerns** that should live outside individual notifier
   modules: logging configuration, retry helpers, label-to-payload
-  mapping. (Today these are partially duplicated; see §5.)
+  mapping. Logging (`logging_setup.py`) and retry (`retry.py`) were
+  unified in v0.3.0 and are consumed by both notifier modules.
+  Label-to-payload translation still lives inside each notifier
+  module — see `notifiers/service_tracker_dashboard.py:_to_canonical`
+  for STD's mapping.
 - **`interpreter_loader.py`** — loads and evaluates the YAML
   interpreters introduced in v0.4.0. Runs once at startup to load
   YAMLs from `/app/interpreters/builtin/` and `/app/interpreters/user/`
@@ -163,11 +170,17 @@ startup (see §1.3 and §11).
 2. Docker event subscription — events whose `Action` is in
    `watched_actions` are processed live.
 3. Periodic loop — every `STD_REFRESH_SECONDS` (default 60s), every
-   running container is reprocessed with `action="refresh"`.
+   running container is reprocessed with `action="refresh"`. Started
+   only when STD is configured (see below).
 
 The periodic loop exists for resilience: if the notifier missed an
 event (network blip, container crash mid-event), the next refresh pass
-catches it.
+catches it. Because `refresh` is an STD-only trigger (DNS fires only on
+`boot`/`start`), the loop is started only when STD is configured
+(`STD_URL` and `STD_API_TOKEN` both set). On a DNS-only deployment the
+notifier logs one line at startup that STD is disabled, does not start
+the loop, and skips STD dispatch on every event — rather than logging a
+"not enabled" line per container per pass.
 
 ### 3.3 Notifier Module Contract
 
@@ -307,12 +320,15 @@ See §11 for the YAML format and emission semantics.
 
 ---
 
-## 5. Current State (v0.4.0)
+## 5. Current State (v0.4.1)
 
-Tags shipped on `main`: v0.1.0 → v0.4.0. v0.3.0 (2026-05-12) resolved
+Tags shipped on `main`: v0.1.0 → v0.4.1. v0.3.0 (2026-05-12) resolved
 every issue listed in §5.2 below. v0.4.0 (2026-05-14) shipped the
 work originally scoped across three separate releases
 (v0.3.1 / v0.3.2 / v0.4.0); the consolidation is summarized in §7.
+v0.4.1 (2026-05-29) is a DNS/logging fix release — a DNS host-name
+override (`HOST_NAME_OVERRIDE`) and a fix for STD-unconfigured log
+flooding. It does not change the STD wire contract.
 
 ### 5.1 What works today
 

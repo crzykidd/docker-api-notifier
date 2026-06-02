@@ -10,9 +10,22 @@ services:
       - STD_API_TOKEN=${STD_API_TOKEN}
       - TZ=America/Los_Angeles
       - STD_REFRESH_SECONDS=120
+      # Override the host name used as the DNS CNAME target (<host>.<dockerdomain>).
+      # If unset, the notifier uses the host's hostname (read from the
+      # /etc/hostname mount below). Set this if running in WSL or other
+      # environments where the host has a different name than your DNS
+      # entries expect.
+#      - HOST_NAME_OVERRIDE=wsl-host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /etc/hostname:/etc/host_hostname:ro
       - /var/docker/docker-api-notifier:/config
       - .:/app
     restart: unless-stopped
+    labels:
+      # dockernotifier
+      - "dockernotifier.notifiers=dns,service-tracker-dashboard"  #which services to run.  
+      - "dockernotifier.dns.containerhostname=container_name"  #put the host name you want to use for the cname entry 
+      - "dockernotifier.dns.containerzone=containerzone"  # This is the domain or zone name you want to add the container entry to
+      - "dockernotifier.dns.dockerdomain=home.arpa" #this is the domain your docker host is a member of
+          

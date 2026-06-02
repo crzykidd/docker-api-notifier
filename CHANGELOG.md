@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-05-29
+
+### Fixed
+- DNS-only deployments no longer flood the log with a "Service Tracker
+  Dashboard not enabled" line on every container, every refresh cycle.
+  When `STD_URL` or `STD_API_TOKEN` is missing, the notifier now logs a
+  single line at startup that STD integration is disabled, skips the
+  periodic refresh loop entirely (it only ever served STD), and does
+  not attempt STD dispatch on subsequent events.
+
+### Added
+- New env var `HOST_NAME_OVERRIDE`. Sets the host name used as the DNS
+  CNAME target (`<host>.<dockerdomain>`), overriding the auto-detected
+  hostname. Useful in WSL or other environments where the host's
+  hostname differs from the name your DNS entries should point at
+  (e.g. Docker Desktop reports the LinuxKit/WSL VM name rather than the
+  real host). Unset preserves the existing auto-detection behavior.
+
 ## [0.4.0] — 2026-05-14
 
 ### Added
@@ -168,7 +186,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.1
 [0.4.0]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.0
 [0.3.0]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.3.0
 [0.2.3]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.2.3

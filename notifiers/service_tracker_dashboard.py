@@ -33,7 +33,7 @@ _PASSTHROUGH = {
     # consumed by STD v0.6.0+.
     "networks", "exposed_ports", "published_ports",
     # v0.4.0: interpreter outputs. List of ExposureObservation dicts
-    # (possibly empty); consumed by STD v0.7.0+. An empty list means
+    # (possibly empty); consumed by STD v0.6.0+. An empty list means
     # "interpreters ran and nothing matched" (STD clears exposure
     # rows). The notifier omits the field entirely when no
     # interpreters are loaded (STD preserves existing rows).
@@ -77,6 +77,15 @@ def _to_canonical(kwargs: dict) -> dict:
     return out
 
 
+def is_configured():
+    """True when both STD env vars are set, i.e. STD dispatch can run.
+
+    Lets `main.py` gate STD dispatch and the periodic refresh loop
+    without hardcoding which env vars STD owns.
+    """
+    return bool(os.environ.get("STD_URL") and os.environ.get("STD_API_TOKEN"))
+
+
 @with_retry
 def post_with_retry(endpoint, payload, headers):
     response = requests.post(endpoint, json=payload, headers=headers)
@@ -97,7 +106,10 @@ def register(**kwargs):
     api_token = os.environ.get("STD_API_TOKEN")
 
     if not dashboard_url or not api_token:
-        logger.info("Not enabling Service Tracker Dashboard integration — missing STD_URL or STD_API_TOKEN")
+        # Normally unreachable: main.py gates STD dispatch on
+        # is_configured() and logs the disabled state once at startup.
+        # Kept as a defensive guard; debug level avoids per-event spam.
+        logger.debug("STD register() called without STD_URL/STD_API_TOKEN — skipping")
         return
 
     kwargs.setdefault("timestamp", datetime.now().isoformat())
