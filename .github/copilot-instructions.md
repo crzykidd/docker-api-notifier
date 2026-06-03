@@ -1,4 +1,4 @@
-## vexp context tools <!-- vexp v2.0.21 -->
+## vexp context tools <!-- vexp v2.0.23 -->
 
 **MANDATORY: use `run_pipeline` - do NOT grep, glob, or read files manually.**
 vexp returns pre-indexed, graph-ranked context in a single call.
