@@ -13,9 +13,10 @@ decorator on functions that make outbound HTTP calls:
 The retry policy:
   - 3 attempts total
   - Exponential backoff: 2s, 4s, 8s (capped at 10s)
-  - Retries only on `requests.RequestException` (network errors,
-    timeouts, connection errors, HTTP errors raised via
-    `raise_for_status()`).
+  - Retries connection errors, timeouts, and HTTP 5xx errors raised via
+    `raise_for_status()`. A 4xx response is a definitive answer (bad
+    request, bad token, not found), so it raises immediately instead
+    of burning the backoff window.
   - Re-raises the last exception if all attempts fail.
 
 These values are deliberately module-level constants so a future
@@ -34,7 +35,7 @@ implement explicit single-attempt error handling instead.
 import requests
 from tenacity import (
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -44,7 +45,18 @@ MAX_ATTEMPTS = 3
 BACKOFF_MULTIPLIER = 1
 BACKOFF_MIN_SECONDS = 2
 BACKOFF_MAX_SECONDS = 10
-RETRY_ON = (requests.RequestException,)
+# Per-request timeout (seconds) for every outbound `requests` call. Use
+# this at each call site so a hung downstream cannot block the event loop.
+REQUEST_TIMEOUT_SECONDS = 10
+
+
+def is_retryable(exc):
+    """True for connection errors, timeouts and 5xx; False for 4xx."""
+    if isinstance(exc, requests.HTTPError):
+        response = exc.response
+        status = getattr(response, "status_code", None)
+        return status is None or status >= 500
+    return isinstance(exc, requests.RequestException)
 
 
 with_retry = retry(
@@ -55,5 +67,5 @@ with_retry = retry(
         min=BACKOFF_MIN_SECONDS,
         max=BACKOFF_MAX_SECONDS,
     ),
-    retry=retry_if_exception_type(RETRY_ON),
+    retry=retry_if_exception(is_retryable),
 )

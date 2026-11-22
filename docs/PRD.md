@@ -19,6 +19,7 @@
 | 0.9     | 2026-11-21 | Unreleased — Docker Hub publishing removed; GHCR is the only registry. §8 updated; the `REGISTRY_NOTICE` build arg and startup notice are gone. |
 | 0.10    | 2026-11-21 | Unreleased — adopts the `code-checkin-and-pr`, `handoff-prompt-workflow`, and `release-prep-and-cut` standards (see `standards.md`). §8 documents the `VERSION` file, CI checks, GHCR retention, and the `/release-prep` → `/release-cut` flow. §5.3 lint item resolved. Version logged at startup. |
 | 0.11    | 2026-11-21 | Release prep for v0.4.3 (first release under the adopted standards). §5 bumped to v0.4.3. Ships rows 0.9–0.10: GHCR-only publishing, the `VERSION` file + startup version log, and the new CI/CodeQL/retention. No wire-contract change. |
+| 0.12    | 2026-11-21 | Unreleased (targets v0.5.0) — `image_info` (running image digests and OCI labels) sent to STD v0.12.0+, gated on STD's `/api/v1/meta`; opt-out `STD_SEND_IMAGE_INFO`. New §9.4 documents the wire contract, the capability gate, and the 0.5.0 ↔ STD 0.12.0+ pairing. Retry policy changed (§5.1, §5.2 N1): 4xx is no longer retried; every outbound request has a 10 s timeout. A `pytest` suite and a CI `Test` job now exist (§10 test-coverage question resolved). |
 
 ---
 
@@ -346,6 +347,13 @@ under the adopted CI and release standards. No wire-contract change.
 - Periodic re-scan thread.
 - DNS notifier with retry, requests-based, raises on HTTP 4xx/5xx.
 - STD notifier with `tenacity`-backed retry, bearer-token auth.
+- Shared retry policy (`retry.py`): retries connection errors, timeouts
+  and HTTP 5xx; a 4xx raises immediately (no retry). Every outbound
+  request passes `REQUEST_TIMEOUT_SECONDS` (10 s).
+- Running-image reporting (`image_info`) to STD v0.12.0+, gated on
+  `/api/v1/meta` (see §9.4).
+- `pytest` suite under `tests/` (fakes Docker and HTTP), run by the CI
+  `Test` job.
 - Label-driven notifier opt-in via `dockernotifier.notifiers`.
 - Per-host STD opt-out via `STD_REPORT_ALL_CONTAINERS` (see §7.2).
 - Network and port capture forwarded to STD on every payload (see §7.3).
@@ -358,7 +366,7 @@ under the adopted CI and release standards. No wire-contract change.
 
 | ID  | Area                  | Issue                                                                                                  |
 |-----|-----------------------|--------------------------------------------------------------------------------------------------------|
-| N1  | DNS notifier          | **Resolved in v0.3.0.** No retry on transient failure. STD notifier uses `tenacity`; DNS doesn't. Asymmetric. Fixed by extracting a shared `with_retry` decorator (`retry.py`) consumed by both notifiers. DNS also now calls `raise_for_status()` so HTTP 4xx/5xx trigger retries instead of being silently logged as successes. |
+| N1  | DNS notifier          | **Resolved in v0.3.0.** No retry on transient failure. STD notifier uses `tenacity`; DNS doesn't. Asymmetric. Fixed by extracting a shared `with_retry` decorator (`retry.py`) consumed by both notifiers. DNS also now calls `raise_for_status()` so HTTP errors are no longer silently logged as successes. (Since v0.5.0 only 5xx is retried; a 4xx raises immediately, see §9.4.) |
 | N2  | DNS notifier          | **Resolved in v0.3.0.** `trigger_reason` parameter accepted but never used. Removed from the `register()` signature; the trigger log line now reads `action` from the common kwargs contract instead, so it reports the real Docker action (`start`, `boot`, `refresh`) rather than the literal default `"event"`. |
 | N3  | Logging               | **Resolved in v0.3.0.** Log handler setup duplicated across `main.py`, `notifiers/technitium_dns.py`, and `notifiers/service_tracker_dashboard.py`. |
 | N4  | Event handling        | **Resolved in v0.3.0.** `"refresh"` is in `NOTIFIER_TRIGGERS["service-tracker-dashboard"]` but not in `watched_actions`, so it never fires from the event stream. The periodic loop is the only path that uses it. |
@@ -705,12 +713,56 @@ If notifier v0.4.0 is deployed against STD v0.5.x, STD's strict
 pydantic validator rejects the payload (unknown keys). Operators
 must upgrade STD before the notifier.
 
+### 9.4 Running image (`image_info`) — notifier v0.5.0 / STD v0.12.0+
+
+STD 0.12.0 (API revision 5) checks moving tags (`latest`, `stable`)
+against the registry's current digest. Only the notifier knows the
+digest the container actually runs, so it sends an optional
+`image_info` object on `/api/v1/register`:
+
+| Field | Source | Limit |
+|---|---|---|
+| `id` | `container.attrs["Image"]` (the image id) | 100 |
+| `repo_digests` | `images.get(id).attrs["RepoDigests"]`, raw; malformed items dropped | 20 items, each `^[^@\s]{1,255}@sha256:[0-9a-f]{64}$` |
+| `created` | image `Created` | 64 |
+| `version` / `revision` / `source` | OCI labels `org.opencontainers.image.version` / `.revision` / `.source` | 128 / 128 / 512 |
+
+`None` values and empty lists are omitted. STD's reading: absent or
+`null` = keep stored values; present = replace (omitted fields are
+cleared). The image is resolved **by id, not tag**, so a pulled-but-not-
+recreated container still reports the digest it really runs. Lookups are
+best effort (a pruned image or API error means no `image_info`, never a
+failed register) and cached by image id.
+
+**Capability gate.** STD's schema is `extra="forbid"`, so the field is
+sent only when `GET <STD_URL>/api/v1/meta` (unauthenticated; returns
+`std_version`, `api_revision`, `features`) lists `"image_info"`. A 404
+(STD < 0.10.0), a connection error or a bad body means "not supported".
+The answer is cached (guarded by a lock; the refresh thread and event
+loop both register) and re-checked when the `X-STD-API-Revision`
+response header changes, after a register 400 that blames `image_info`
+(`unknown_keys` contains it, or a `details[].loc[0]` is `image_info`;
+the register is retried once without it), and, while the last check
+failed, at most every 5 minutes. STD's version and API revision are
+logged at startup and when they change; "does not accept image_info" is
+logged once. `std_status()` exposes the cached state.
+
+Opt-out: `STD_SEND_IMAGE_INFO=false`. DNS never receives `image_info`.
+
+**Pairing:** notifier v0.5.0 ↔ STD v0.12.0+. STD ships first (it has);
+older STD keeps working because the field is simply not sent.
+
+**HTTP behavior (both notifiers).** Retries cover connection errors,
+timeouts and 5xx only; a 4xx raises immediately. All outbound requests
+use a 10 s timeout (`retry.REQUEST_TIMEOUT_SECONDS`).
+
 ---
 
 ## 10. Open Questions
 
-- **Test coverage.** No tests exist today. Worth investing in a small
-  suite that fakes the Docker client and asserts dispatch behavior?
+- **Test coverage.** *Resolved:* a `pytest` suite under `tests/` fakes
+  the Docker client and HTTP layer; CI runs it as the `Test` job. Grow
+  it as behavior is added.
 - **Health check of notifier itself.** Currently the only liveness
   signal is "the container is running." A `/health` endpoint or
   heartbeat to STD might be valuable.

@@ -4,6 +4,7 @@ import time
 
 import docker
 
+import image_info
 import interpreter_loader
 from logging_setup import get_logger
 from notifiers import service_tracker_dashboard, technitium_dns
@@ -53,6 +54,13 @@ if not STD_CONFIGURED:
         "STD_URL or STD_API_TOKEN is missing — disabling STD integration "
         "(no STD reporting, no periodic refresh loop)"
     )
+
+# Opt-out for sending the running image's digests and OCI labels to STD
+# (`image_info`). Even when on, it is only sent to an STD whose
+# /api/v1/meta advertises support. Never reaches the DNS notifier.
+STD_SEND_IMAGE_INFO = _parse_bool_env("STD_SEND_IMAGE_INFO", default=True)
+if STD_CONFIGURED and not STD_SEND_IMAGE_INFO:
+    logger.info("STD_SEND_IMAGE_INFO is off — not sending image info to STD")
 
 # Debug-only: re-load interpreters on every event instead of once at
 # startup. Not for production use; intended for iterating on YAML
@@ -234,6 +242,12 @@ def handle_container_event(container, docker_host, action):
             if key.startswith("dockernotifier.std.")
         }
         std_extras["exposure_observations"] = _run_interpreters(labels)
+        # A `dockernotifier.std.image_info` label must not leak into the payload.
+        std_extras.pop("image_info", None)
+        if STD_SEND_IMAGE_INFO and service_tracker_dashboard.image_info_supported():
+            info = image_info.lookup(container)
+            if info:
+                std_extras["image_info"] = info
         service_tracker_dashboard.register(**base_kwargs, **std_extras)
 
 
@@ -258,6 +272,10 @@ def main():
     client = docker.from_env()
     docker_host = get_host_name()
     logger.info(f"Starting Docker API Notifier version {get_version()} on host: {docker_host}")
+
+    if STD_CONFIGURED:
+        # Logs STD's version and API revision and caches what it supports.
+        service_tracker_dashboard.check_meta_at_startup()
 
     logger.info("Running boot-time scan of existing containers...")
     for container in client.containers.list():

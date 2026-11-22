@@ -5,6 +5,44 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
+## 2026-11-21 — image_info: gate on /meta, resolve by id, retry only 5xx
+
+- **Gate on STD's `/api/v1/meta`, not a version guess.** STD's schema is
+  `extra="forbid"`, so an unsupported `image_info` would 400 every
+  register. The notifier caches `features` from the unauthenticated
+  `/meta` (lock-guarded: the refresh thread and event loop both
+  register), re-checks on an `X-STD-API-Revision` header change or a
+  register 400 that blames `image_info` (detected structurally via
+  `unknown_keys` / `details[].loc[0]`, never by error text), and retries
+  that register once without the field. A rejection is remembered per
+  API revision so an STD that advertises the feature but still rejects it
+  is not re-sent the field every cycle. Failed `/meta` checks are retried
+  at most every 5 minutes (or sooner when a revision header shows up).
+- **Resolve the image by `container.attrs["Image"]` (id), not
+  `Config.Image` (tag).** After `docker compose pull` without a recreate
+  the tag points at the new image while the container runs the old one.
+- **No containerd special case.** Verified on Docker 29.9.3 with the
+  containerd image store: `images.get(id).attrs["RepoDigests"]` is
+  populated (e.g. `ghcr.io/crzykidd/docker-api-notifier@sha256:...`) and
+  the image id equals that index digest, so "send `RepoDigests` raw"
+  works on both stores. Local builds have empty `RepoDigests`; the other
+  fields still go out. Not verified on the classic overlay2 store here.
+- **Facts cached by image id** (bounded, ~256 entries): an id's facts never
+  change, so the refresh loop does not call `images.get` per container per
+  cycle. Failed lookups are not cached and warn once per image id.
+- **Retry only connection errors, timeouts and 5xx** (both notifiers); a
+  4xx is a definitive answer. This also makes the 400 fallback instant.
+  Reverses the v0.3.0 note that DNS retried 4xx. Every outbound request
+  passes `retry.REQUEST_TIMEOUT_SECONDS` (10 s), no env var.
+- **Test suite added** (`pytest`, `tests/`, CI `Test` job), reversing the
+  adoption-time "no test job" exemption. The ruleset still needs `Test`
+  added as a required check once CI reports it (done by the orchestrating
+  session, not this change).
+- **Stale doc fixed:** `CLAUDE.md` and the README said STD rejects
+  unknown keys with HTTP 422; STD answers 400.
+
+---
+
 ## 2026-11-21 — CodeQL required to run, not to be clean
 
 The `main` ruleset's `code_scanning` rule uses `alerts_threshold: none`

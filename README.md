@@ -96,14 +96,21 @@ notifier targets can be added without touching the core event loop.
 > **Notifier v0.4.0 requires STD v0.6.0 or later.** Starting in v0.4.0
 > the notifier emits `networks`, `exposed_ports`, `published_ports`,
 > and `exposure_observations` on every STD payload. STD v0.5.x's
-> strict pydantic validator rejects unknown keys and will return 422
+> strict pydantic validator rejects unknown keys and will return 400
 > for these payloads — upgrade STD first.
+>
+> **Notifier v0.5.0 sends the running image (`image_info`) to STD
+> v0.12.0 or later** for its image update check. It is sent only when
+> STD's `/api/v1/meta` advertises support, so older STD versions keep
+> working unchanged (the notifier logs once that image info is not
+> being sent). STD should be upgraded first.
 
 | Variable                     | Required | Default | Description |
 |------------------------------|----------|---------|-------------|
 | `STD_URL`                    | Yes (for STD) | —       | Base URL of the STD instance, e.g. `http://std.example.com:8815`. |
 | `STD_API_TOKEN`              | Yes (for STD) | —       | Bearer token configured on the STD side. |
 | `STD_REPORT_ALL_CONTAINERS`  | No       | `false` | When truthy (`true`, `1`, `yes` — case-insensitive), report **every running container on this host** to STD regardless of whether it has the `dockernotifier.notifiers=service-tracker-dashboard` opt-in label. Default off preserves per-container opt-in behavior. **Only affects STD** — the DNS notifier still requires explicit per-container opt-in via labels. Unrecognized values log a warning at startup and are treated as off. |
+| `STD_SEND_IMAGE_INFO`        | No       | `true`  | When truthy, send the running image's digests (`RepoDigests`, image id), creation time, and OCI labels (`org.opencontainers.image.version` / `.revision` / `.source`) to STD, so STD 0.12.0+ can tell whether a moving tag (`latest`, `stable`) has a newer image. Only sent when STD advertises support; set `false` to never send image details. **Only affects STD.** |
 | `INTERPRETER_RELOAD_ON_EACH_EVENT` | No       | `false` | Debug-only. When truthy, re-reads YAML interpreters from disk on every dispatch instead of once at startup. Use while iterating on a new YAML; do not leave on in production. |
 
 If a notifier's required env vars are missing, that notifier no-ops —
@@ -314,10 +321,12 @@ Volumes:
 - Both notifiers share a single retry-with-backoff policy
   (`tenacity`, exposed via the `with_retry` decorator in `retry.py`) for
   transient network failures: 3 attempts, exponential backoff 2s/4s/8s
-  capped at 10s, retries on `requests.RequestException`. The DNS
-  notifier also calls `raise_for_status()` so HTTP 4xx/5xx responses
-  from Technitium trigger retries instead of being logged as
-  successes.
+  capped at 10s, retrying connection errors, timeouts, and HTTP 5xx
+  responses. A 4xx response is not retried (it raises immediately). The
+  DNS notifier also calls `raise_for_status()` so HTTP errors from
+  Technitium are not logged as successes. Every outbound request has a
+  10-second timeout, so a hung DNS server or STD cannot stall the
+  notifier.
 
 ---
 

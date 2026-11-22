@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Sends the running image (digests and OCI labels) to Service Tracker
+  Dashboard 0.12.0+ for its image update check; only when STD advertises
+  support; opt out with `STD_SEND_IMAGE_INFO=false`. Logs STD's API
+  revision at startup.
+- Automated test suite (`pytest`, `requirements-dev.txt`) and a CI `Test`
+  job. Tooling only; no change to how the notifier runs.
+
+### Changed
+- HTTP 4xx responses from STD or Technitium DNS are no longer retried
+  (retries now cover connection errors, timeouts, and 5xx only), so a bad
+  request or token fails immediately instead of after the backoff window.
+- Every request to STD and Technitium DNS now has a 10-second timeout; a
+  hung server no longer blocks the notifier indefinitely.
+
 ## [0.4.3] — 2026-11-21
 
 ### Added

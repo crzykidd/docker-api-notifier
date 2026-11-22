@@ -214,9 +214,10 @@ project-specific facts are:
 
 - **CI** (`.github/workflows/ci.yml`, push to `dev`/`main` only): `Lint`
   (ruff 0.15.17, rules in `ruff.toml`), `Config validation` (every YAML/JSON
-  parses, and every interpreter YAML passes `interpreter_loader`), and
-  `Compose validation`. No migration check (no database) and no test job
-  (no tests yet). CodeQL runs as GitHub's default code-scanning setup.
+  parses, and every interpreter YAML passes `interpreter_loader`),
+  `Compose validation`, and `Test` (`pytest -q` over `tests/`, which fake
+  the Docker client and HTTP; deps in `requirements-dev.txt`). No migration
+  check (no database). CodeQL runs as GitHub's default code-scanning setup.
 - **Required checks on `main`** (ruleset "Require PR for Main"): `build`
   (image build, `docker-publish.yml`), `Lint`, `Config validation`,
   `Compose validation`, plus a CodeQL `code_scanning` rule. CodeQL must
@@ -263,7 +264,7 @@ contract.
 
 - **STD owns the contract.** Its pydantic schemas define a valid
   payload and use `extra="forbid"` — unknown keys get rejected with
-  HTTP 422, not ignored.
+  HTTP 400 (`unknown_keys` in the body), not ignored.
 - **This notifier is the producer.** It sends what STD documents. The
   wire format lives in `notifiers/service_tracker_dashboard.py`
   (`_to_canonical`).
@@ -275,7 +276,7 @@ side (STD) must ship before the schema-sending side (this notifier).**
 
 - Adding a field this notifier will send → STD must accept it first.
   Ship STD's schema change, *then* ship the notifier that emits the
-  field. Shipping the notifier first means STD 422s every payload from
+  field. Shipping the notifier first means STD 400s every payload from
   upgraded hosts.
 - A field STD wants to consume → STD can add the column/UI, but it
   stays empty until a notifier version populates it. Feature isn't live
@@ -299,12 +300,22 @@ The notifier must keep older STD versions working:
   returning `None` vs. `[]` is the distinction, and
   `_run_interpreters` in `main.py` preserves it.
 
+- `image_info` (the running image's digests and OCI labels) requires
+  STD v0.12.0+ (API revision 5). It is sent **only** when STD's
+  unauthenticated `GET /api/v1/meta` lists `"image_info"` in `features`;
+  the answer is cached and re-checked when the `X-STD-API-Revision`
+  response header changes or STD 400s the field. Opt out with
+  `STD_SEND_IMAGE_INFO=false`. The DNS notifier never receives it.
+
 ### Version pairing history (informational, not the rule)
 
 - Notifier v0.3.0 switched to canonical keys + `/api/v1/register`;
   requires STD v0.5.0+.
 - Notifier v0.4.0 added capture fields + the interpreter mechanism
   (`exposure_observations`); requires STD v0.6.0+.
+- Notifier v0.5.0 added `image_info`, gated on STD's `/api/v1/meta`;
+  pairs with STD v0.12.0+ (older STD keeps working, it just never gets
+  the field).
 
 ## Notifier Module Conventions
 
