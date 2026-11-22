@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-11-21
+
 ### Added
 - The notifier logs its version at startup
   (`Starting Docker API Notifier version X.Y.Z on host: ...`), so you can
@@ -221,7 +223,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.1
 [0.4.0]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.0

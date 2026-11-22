@@ -18,6 +18,7 @@
 | 0.8     | 2026-11-21 | v0.4.2 — registry move. Images now publish to GHCR (`ghcr.io/crzykidd/docker-api-notifier`); v0.4.2 is the final Docker Hub release and its image logs a startup "moved" notice (gated on the `REGISTRY_NOTICE=dockerhub` build arg). §5 bumped to v0.4.2; §8 documents both registries. No wire-contract change. |
 | 0.9     | 2026-11-21 | Unreleased — Docker Hub publishing removed; GHCR is the only registry. §8 updated; the `REGISTRY_NOTICE` build arg and startup notice are gone. |
 | 0.10    | 2026-11-21 | Unreleased — adopts the `code-checkin-and-pr`, `handoff-prompt-workflow`, and `release-prep-and-cut` standards (see `standards.md`). §8 documents the `VERSION` file, CI checks, GHCR retention, and the `/release-prep` → `/release-cut` flow. §5.3 lint item resolved. Version logged at startup. |
+| 0.11    | 2026-11-21 | Release prep for v0.4.3 (first release under the adopted standards). §5 bumped to v0.4.3. Ships rows 0.9–0.10: GHCR-only publishing, the `VERSION` file + startup version log, and the new CI/CodeQL/retention. No wire-contract change. |
 
 ---
 
@@ -323,9 +324,9 @@ See §11 for the YAML format and emission semantics.
 
 ---
 
-## 5. Current State (v0.4.2)
+## 5. Current State (v0.4.3)
 
-Tags shipped on `main`: v0.1.0 → v0.4.2. v0.3.0 (2026-05-12) resolved
+Tags shipped on `main`: v0.1.0 → v0.4.3. v0.3.0 (2026-05-12) resolved
 every issue listed in §5.2 below. v0.4.0 (2026-05-14) shipped the
 work originally scoped across three separate releases
 (v0.3.1 / v0.3.2 / v0.4.0); the consolidation is summarized in §7.
@@ -334,7 +335,9 @@ override (`HOST_NAME_OVERRIDE`) and a fix for STD-unconfigured log
 flooding. It does not change the STD wire contract. v0.4.2
 (2026-11-21) moves image publishing to GHCR; it is the final Docker Hub
 release and has no behavior change beyond the Docker Hub image's
-startup "moved" notice.
+startup "moved" notice. v0.4.3 (2026-11-21) is the first GHCR-only
+release: it logs its version at startup and is the first release cut
+under the adopted CI and release standards. No wire-contract change.
 
 ### 5.1 What works today
 
