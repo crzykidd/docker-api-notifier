@@ -24,8 +24,8 @@ workarounds — newest at top. One entry per decision.
   embed the full URL and the DNS token travels in its query string, so
   `health.sanitize_error()` cuts query strings and userinfo, masks
   `token=`-style values and any configured secret, then truncates to 200
-  chars. (The existing log lines for DNS failures still print the raw
-  exception, token included; left as is, out of scope here.)
+  chars. The DNS failure log line uses the same scrubber (it used to print
+  the raw exception, token included; fixed right after this change).
 - **Notifier outcomes are recorded inside each `register()`** (final result
   after retries), keeping the public `register(**kwargs)` contract
   unchanged. `health.py` imports the STD module lazily in `snapshot()`

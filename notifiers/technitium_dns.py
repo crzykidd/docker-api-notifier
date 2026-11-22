@@ -64,5 +64,7 @@ def register(*, container_fqdn, zone, value, **kwargs):
         logger.info(f'DNS update response for {container_fqdn}: {response.text}')
         health.record_success("dns")
     except requests.RequestException as e:
-        logger.error(f'DNS update failed for {container_name} after retries: {e}')
+        # requests embeds the full URL in its errors, and the token rides in
+        # the query string: never log the raw exception.
+        logger.error(f'DNS update failed for {container_name} after retries: {health.sanitize_error(e)}')
         health.record_error("dns", e)

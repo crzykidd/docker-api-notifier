@@ -147,6 +147,20 @@ def test_no_secret_in_snapshot_even_from_exception_urls(docker_ok, monkeypatch):
     assert health.snapshot()[0]["notifiers"]["service_tracker_dashboard"]["error_count"] == 1
 
 
+def test_dns_failure_log_line_has_no_token(monkeypatch, caplog):
+    monkeypatch.setenv("DNS_SERVER_URL", "http://dns.test/api")
+    monkeypatch.setenv("DNS_SERVER_API_TOKEN", DNS_TOKEN)
+    monkeypatch.setattr(dns.requests, "get", mock.Mock(
+        side_effect=requests.ConnectionError(
+            f"Max retries exceeded with url: /api?token={DNS_TOKEN}&domain=a.b")))
+    monkeypatch.setattr(dns._do_dns_update.retry, "sleep", lambda s: None)
+    monkeypatch.setattr(dns.logger, "propagate", True)
+    with caplog.at_level("ERROR", logger=dns.logger.name):
+        dns.register(container_fqdn="a.b", zone="b", value="h.c", container_name="c")
+    assert "DNS update failed for c" in caplog.text
+    assert DNS_TOKEN not in caplog.text
+
+
 def test_notifier_register_records_success(monkeypatch):
     monkeypatch.setenv("DNS_SERVER_URL", "http://dns.test/api")
     monkeypatch.setenv("DNS_SERVER_API_TOKEN", DNS_TOKEN)

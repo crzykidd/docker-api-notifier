@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Every request to STD and Technitium DNS now has a 10-second timeout; a
   hung server no longer blocks the notifier indefinitely.
 
+### Security
+- A failed Technitium DNS update no longer writes `DNS_SERVER_API_TOKEN`
+  into the log (`/config/notifier.log` and stdout); the error is logged
+  with the URL query string and credentials removed. Earlier versions
+  logged the token on every DNS failure, so consider rotating it if your
+  logs are shipped or shared.
+
 ## [0.4.3] — 2026-11-21
 
 ### Added
