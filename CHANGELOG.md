@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-11-22
+
+### Fixed
+- The README now states the project's actual license, GPL-3.0 (matching
+  `LICENSE` and the image's license label); it wrongly said MIT.
+
 ## [0.5.0] — 2026-11-21
 
 ### Added
@@ -251,7 +257,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.1...v0.4.2

@@ -194,12 +194,14 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
 
 ## Build Status
 
-Current shipped release: **v0.5.0** (latest tag on `main`).
+Current shipped release: **v0.5.1** (latest tag on `main`).
 
-Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.5.0 adds the
+Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.5.1 is a
+docs-only patch (the README's license statement corrected to GPL-3.0); no
+behavior or STD wire-contract change. v0.5.0 added the
 `image_info` wire key (running image digests and OCI labels), sent only to
 STD v0.12.0+ that advertises it via `/api/v1/meta` — older STD keeps
-working without it. It also adds the `/healthz` endpoint and image
+working without it. It also added the `/healthz` endpoint and image
 `HEALTHCHECK`, stops retrying 4xx, puts a 10 s timeout on every request,
 adds the `pytest` suite, and stops the DNS token being logged on failure.
 

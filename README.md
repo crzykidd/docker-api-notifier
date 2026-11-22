@@ -2,7 +2,7 @@
 
 ![Docker Image](https://img.shields.io/badge/docker-ready-blue?logo=docker)
 ![Python](https://img.shields.io/badge/python-3.11-blue?logo=python)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 > [!IMPORTANT]
 > **Images are published to GitHub Container Registry:
@@ -403,7 +403,7 @@ Images are published to `ghcr.io/crzykidd/docker-api-notifier`. Docker Hub
 - `:latest` follows the `main` branch — CI-verified pre-release.
 - `:dev` follows the `dev` branch — work in progress.
 - `:sha-<short>` is published for every push for exact pinning.
-- Semver-tagged images (`:0.5.0`, `:0`) are published from GitHub Releases.
+- Semver-tagged images (`:0.5.1`, `:0`) are published from GitHub Releases.
 
 The running version is logged at startup
 (`Starting Docker API Notifier version X.Y.Z on host: ...`) and lives in
@@ -421,4 +421,4 @@ and 15 kept); `:latest`, `:dev`, and `:X` are never pruned.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GNU General Public License v3.0 — see [LICENSE](LICENSE).
