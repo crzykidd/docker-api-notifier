@@ -6,11 +6,9 @@ name: Build and Push Docker Image
 #   pull_request → main  build only — no push (gates branch protection)
 #   release published    builds :latest, :<semver>, :<major> (production-ready)
 #
-# Registries (v0.4.2 transition release):
-#   ghcr.io/crzykidd/docker-api-notifier — the new home.
-#   crzykidd/docker-api-notifier (Docker Hub) — final release. Built with
-#     REGISTRY_NOTICE=dockerhub so it logs a "moved to GHCR" notice at
-#     startup. Docker Hub publishing is removed after v0.4.2.
+# Registry:
+#   ghcr.io/crzykidd/docker-api-notifier — the only registry.
+#   (Docker Hub publishing stopped after v0.4.2.)
 
 on:
   push:
@@ -33,18 +31,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify release tag matches VERSION
+        if: github.event_name == 'release'
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          file="$(tr -d '[:space:]' < VERSION)"
+          if [ "$tag" != "$file" ]; then
+            echo "ERROR: release tag '${GITHUB_REF_NAME}' does not match VERSION '${file}'"
+            exit 1
+          fi
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
@@ -54,7 +55,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute tags (GHCR)
+      - name: Compute tags
         id: meta_ghcr
         uses: docker/metadata-action@v5
         with:
@@ -69,7 +70,7 @@ jobs:
             type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
             type=ref,event=pr
 
-      - name: Build and push (GHCR, multi-arch)
+      - name: Build and push (multi-arch)
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -79,30 +80,3 @@ jobs:
           labels: ${{ steps.meta_ghcr.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Compute tags (Docker Hub)
-        id: meta_hub
-        uses: docker/metadata-action@v5
-        with:
-          images: crzykidd/docker-api-notifier
-          flavor: latest=false
-          tags: |
-            type=raw,value=dev,enable=${{ github.event_name == 'push' && github.ref_name == 'dev' }}
-            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref_name == 'main' }}
-            type=sha,prefix=sha-,format=short,enable=${{ github.event_name == 'push' }}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' }}
-            type=ref,event=pr
-
-      - name: Build and push (Docker Hub, multi-arch, with moved notice)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta_hub.outputs.tags }}
-          labels: ${{ steps.meta_hub.outputs.labels }}
-          build-args: |
-            REGISTRY_NOTICE=dockerhub
-          cache-from: type=gha

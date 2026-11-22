@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-11-21
+
+### Added
+- The notifier logs its version at startup
+  (`Starting Docker API Notifier version X.Y.Z on host: ...`), so you can
+  tell which release a host is running from its logs.
+
+### Changed
+- Every change headed for `main` now runs lint, config and
+  interpreter-YAML validation, compose validation, an image build, and
+  CodeQL code scanning. Old GHCR images are pruned automatically: the
+  newest 30 `:sha-*` and 15 semver images are kept, and `:latest`, `:dev`,
+  and `:<major>` are never deleted. No change to how the notifier runs.
+
+### Removed
+- Docker Hub publishing. Images are published only to
+  `ghcr.io/crzykidd/docker-api-notifier`; `crzykidd/docker-api-notifier`
+  on Docker Hub stays frozen at v0.4.2 and gets no new tags (including
+  `:dev` and `:latest`). The "this image has moved" startup notice
+  existed only in the Docker Hub image and is gone with it.
+
 ## [0.4.2] — 2026-11-21
 
 ### Added
@@ -202,7 +223,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.1
 [0.4.0]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.0

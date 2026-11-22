@@ -16,6 +16,9 @@
 | 0.6     | 2026-05-29 | STD dispatch and the periodic refresh loop are now gated on STD being configured. §3.2 event-flow notes the loop starts only when `STD_URL`/`STD_API_TOKEN` are set; DNS-only deployments log the disabled state once instead of per-event. |
 | 0.7     | 2026-05-29 | Release prep for v0.4.1. §5 "Current State" bumped to v0.4.1; no behavioral content change — rows 0.5/0.6 already documented the shipped fixes. |
 | 0.8     | 2026-11-21 | v0.4.2 — registry move. Images now publish to GHCR (`ghcr.io/crzykidd/docker-api-notifier`); v0.4.2 is the final Docker Hub release and its image logs a startup "moved" notice (gated on the `REGISTRY_NOTICE=dockerhub` build arg). §5 bumped to v0.4.2; §8 documents both registries. No wire-contract change. |
+| 0.9     | 2026-11-21 | Unreleased — Docker Hub publishing removed; GHCR is the only registry. §8 updated; the `REGISTRY_NOTICE` build arg and startup notice are gone. |
+| 0.10    | 2026-11-21 | Unreleased — adopts the `code-checkin-and-pr`, `handoff-prompt-workflow`, and `release-prep-and-cut` standards (see `standards.md`). §8 documents the `VERSION` file, CI checks, GHCR retention, and the `/release-prep` → `/release-cut` flow. §5.3 lint item resolved. Version logged at startup. |
+| 0.11    | 2026-11-21 | Release prep for v0.4.3 (first release under the adopted standards). §5 bumped to v0.4.3. Ships rows 0.9–0.10: GHCR-only publishing, the `VERSION` file + startup version log, and the new CI/CodeQL/retention. No wire-contract change. |
 
 ---
 
@@ -321,9 +324,9 @@ See §11 for the YAML format and emission semantics.
 
 ---
 
-## 5. Current State (v0.4.2)
+## 5. Current State (v0.4.3)
 
-Tags shipped on `main`: v0.1.0 → v0.4.2. v0.3.0 (2026-05-12) resolved
+Tags shipped on `main`: v0.1.0 → v0.4.3. v0.3.0 (2026-05-12) resolved
 every issue listed in §5.2 below. v0.4.0 (2026-05-14) shipped the
 work originally scoped across three separate releases
 (v0.3.1 / v0.3.2 / v0.4.0); the consolidation is summarized in §7.
@@ -332,7 +335,9 @@ override (`HOST_NAME_OVERRIDE`) and a fix for STD-unconfigured log
 flooding. It does not change the STD wire contract. v0.4.2
 (2026-11-21) moves image publishing to GHCR; it is the final Docker Hub
 release and has no behavior change beyond the Docker Hub image's
-startup "moved" notice.
+startup "moved" notice. v0.4.3 (2026-11-21) is the first GHCR-only
+release: it logs its version at startup and is the first release cut
+under the adopted CI and release standards. No wire-contract change.
 
 ### 5.1 What works today
 
@@ -363,7 +368,7 @@ startup "moved" notice.
 
 ### 5.3 Minor housekeeping (not blocking v0.3.0 but worth doing)
 
-- No CI lint job. Consider adding `ruff` to mirror downstream practices.
+- ~~No CI lint job.~~ Resolved: `ruff` runs in CI (`ci.yml`, `ruff.toml`).
 - `requirements.txt` is unpinned. Pinning would protect reproducibility.
 
 ---
@@ -641,17 +646,28 @@ STD's `ExposureObservation` schema beyond basic structure.
 
 - `main` is the default branch and the source of truth for releases.
 - All work happens on `dev`. PR `dev` → `main` when ready to release.
-- Branch protection: require PR + green build check, block force-push,
-  block deletion.
-- Images publish to `ghcr.io/crzykidd/docker-api-notifier`. v0.4.2 is
-  the final Docker Hub (`crzykidd/docker-api-notifier`) release; that
-  build sets `REGISTRY_NOTICE=dockerhub` so it logs a "moved to GHCR"
-  notice at startup. Docker Hub publishing is removed after v0.4.2.
+- Branch protection (ruleset "Require PR for Main"): require PR, block
+  force-push, block deletion, and require green checks — `build` plus the
+  `CI` workflow's `Lint`, `Config validation`, `Compose validation`, and
+  CodeQL (`code-checkin-and-pr` standard; see `standards.md`).
+- The version lives in the bare-semver `VERSION` file at the repo root;
+  `main.py` logs it at startup, and the publish workflow fails a release
+  whose tag (minus `v`) differs from it.
+- Images publish to `ghcr.io/crzykidd/docker-api-notifier` only. Docker
+  Hub (`crzykidd/docker-api-notifier`) is frozen at v0.4.2, its final
+  release (that image logged a "moved to GHCR" notice at startup).
 - Image tags follow `.github/workflows/docker-publish.yml`:
   - push to `dev` → `:dev` and `:sha-<short>`
   - push to `main` → `:latest` and `:sha-<short>`
   - GitHub Release published → `:latest`, `:<semver>`, `:<major>`
-- Tags are cut from the GitHub Releases UI against `main`.
+- `.github/workflows/retention.yml` prunes GHCR: keeps the newest 30
+  `:sha-*` and 15 semver versions; never deletes `:latest`, `:dev`, `:X`,
+  or untagged manifests.
+- Releases follow the `release-prep-and-cut` standard: `/release-prep
+  <version>` on `dev` (bump `VERSION`, roll CHANGELOG, sync docs, open the
+  PR) → human merge + green `main` build → `/release-cut <version>` (tag
+  `v<version>` on `main`, publish the GitHub release with the CHANGELOG
+  section as its body).
 
 ---
 

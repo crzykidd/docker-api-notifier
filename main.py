@@ -1,11 +1,12 @@
 import os
-import docker
-from datetime import datetime
-from notifiers import technitium_dns, service_tracker_dashboard
 import threading
 import time
-from logging_setup import get_logger
+
+import docker
+
 import interpreter_loader
+from logging_setup import get_logger
+from notifiers import service_tracker_dashboard, technitium_dns
 
 logger = get_logger("main")
 
@@ -92,6 +93,17 @@ def periodic_update_loop(docker_host):
             except Exception as e:
                 logger.error(f"Refresh failed for {container.name}: {e}")
         time.sleep(STD_REFRESH_SECONDS)
+
+
+def get_version():
+    # VERSION (bare semver) sits next to main.py, both in the repo and at
+    # /app/VERSION in the image. It is the release source of truth.
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")
+    try:
+        with open(path) as f:
+            return f.read().strip() or "unknown"
+    except OSError:
+        return "unknown"
 
 
 def get_host_name():
@@ -242,28 +254,10 @@ def _run_interpreters(labels):
         return None
     return interpreter_loader.evaluate(INTERPRETER_LOAD_RESULT.interpreters, labels)
 
-GHCR_IMAGE = "ghcr.io/crzykidd/docker-api-notifier"
-
-
-def log_registry_notice():
-    # REGISTRY_NOTICE is set to "dockerhub" only in the Docker Hub image
-    # (a build arg in the publish workflow). The GHCR image never logs this.
-    if os.environ.get("REGISTRY_NOTICE", "").strip().lower() != "dockerhub":
-        return
-    logger.warning("=" * 72)
-    logger.warning("IMAGE HAS MOVED: docker-api-notifier is now published to")
-    logger.warning(f"  {GHCR_IMAGE}")
-    logger.warning("v0.4.2 is the final release on Docker Hub")
-    logger.warning("(crzykidd/docker-api-notifier). This image will get no further")
-    logger.warning(f"updates. Change your compose image: line to {GHCR_IMAGE}:latest")
-    logger.warning("=" * 72)
-
-
 def main():
-    log_registry_notice()
     client = docker.from_env()
     docker_host = get_host_name()
-    logger.info(f"Starting Docker API Notifier on host: {docker_host}")
+    logger.info(f"Starting Docker API Notifier version {get_version()} on host: {docker_host}")
 
     logger.info("Running boot-time scan of existing containers...")
     for container in client.containers.list():

@@ -119,3 +119,34 @@ capture), and v0.4.0 (interpreters). v0.3.1 and v0.3.2 were never
 cut as git tags; `git tag --list` jumps directly from `v0.3.0` to
 `v0.4.0`. PRD revision-history rows 0.2 and 0.3 document the planning
 work; row 0.4 documents the consolidation.
+
+---
+
+## Registry move: Docker Hub → GHCR (v0.4.2)
+
+Through v0.4.1, images were published only to Docker Hub
+(`crzykidd/docker-api-notifier`). v0.4.2 (2026-11-21) moved publishing
+to GitHub Container Registry (`ghcr.io/crzykidd/docker-api-notifier`).
+
+### Why
+
+GHCR retention can run on the workflow's own `GITHUB_TOKEN`, which the
+`code-checkin-and-pr` standard's registry-retention job needs; Docker Hub
+would need a separate delete-scoped token. The paired STD project made
+the same move at its v0.6.7.
+
+### What changed
+
+- v0.4.2 was published to **both** registries so GHCR already had an
+  image for users to switch to. The Docker Hub build alone set
+  `REGISTRY_NOTICE=dockerhub`, which made the notifier log a "this image
+  has moved" notice at startup.
+- After v0.4.2, Docker Hub publishing and the notice code were removed.
+  Docker Hub is frozen at v0.4.2 (`:latest`, `:0.4.2`, `:0`).
+
+### Impact on existing installs
+
+Operators pulling from Docker Hub keep running v0.4.2 and see the moved
+notice in their logs. Switching is a one-line compose change to
+`ghcr.io/crzykidd/docker-api-notifier:<tag>`; env vars, labels, and
+volumes are unchanged.

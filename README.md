@@ -5,13 +5,12 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 > [!IMPORTANT]
-> **The image has moved to GitHub Container Registry:
-> `ghcr.io/crzykidd/docker-api-notifier`.** v0.4.2 is the final release
-> published to Docker Hub (`crzykidd/docker-api-notifier`); that image
-> gets no further updates and logs a "moved" notice at startup. Change
-> your compose `image:` line to `ghcr.io/crzykidd/docker-api-notifier:latest`
-> (or pin a version, e.g. `:0.4.2`). Nothing else changes — same env
-> vars, labels, and volumes.
+> **Images are published to GitHub Container Registry:
+> `ghcr.io/crzykidd/docker-api-notifier`.** Docker Hub
+> (`crzykidd/docker-api-notifier`) is no longer updated — v0.4.2 was its
+> final release. If you still pull from Docker Hub, change your compose
+> `image:` line to `ghcr.io/crzykidd/docker-api-notifier:latest`. Env
+> vars, labels, and volumes are the same.
 
 A lightweight, event-driven Docker monitor that listens to the Docker socket
 on a host and fans out container events to multiple downstream notifiers.
@@ -342,12 +341,19 @@ Images are published to `ghcr.io/crzykidd/docker-api-notifier`. Docker Hub
 - `:latest` follows the `main` branch — CI-verified pre-release.
 - `:dev` follows the `dev` branch — work in progress.
 - `:sha-<short>` is published for every push for exact pinning.
-- Semver-tagged images (`:0.4.2`, `:0`) are published from GitHub Releases.
+- Semver-tagged images (`:0.4.3`, `:0`) are published from GitHub Releases.
 
-Branch protection: PRs into `main` must pass the build check; force-push
-and branch deletion are blocked. Work happens on `dev`, opens a PR to
-`main`, and merges only when CI is green. Release tags are cut from the
-GitHub Releases UI on `main`.
+The running version is logged at startup
+(`Starting Docker API Notifier version X.Y.Z on host: ...`) and lives in
+the repo's `VERSION` file.
+
+Branch protection: PRs into `main` must pass CI (lint, config and
+interpreter validation, compose validation, image build, CodeQL);
+force-push and branch deletion are blocked. Work happens on `dev`, opens
+a PR to `main`, and merges only when CI is green. Releases are tagged
+`vX.Y.Z` from `main`; release notes are the matching `CHANGELOG.md`
+section. Old `:sha-*` and semver images are pruned from GHCR (newest 30
+and 15 kept); `:latest`, `:dev`, and `:X` are never pruned.
 
 ---
 

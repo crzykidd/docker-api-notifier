@@ -1,7 +1,9 @@
-import os
-import requests
-from datetime import datetime
 import json
+import os
+from datetime import datetime
+
+import requests
+
 from logging_setup import get_logger
 from retry import with_retry
 
