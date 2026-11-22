@@ -194,14 +194,14 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
 
 ## Build Status
 
-Current shipped release: **v0.4.3** (latest tag on `main`).
+Current shipped release: **v0.5.0** (latest tag on `main`).
 
-Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.4.3 is the
-first GHCR-only release (Docker Hub is frozen at v0.4.2) and the first cut
-under the adopted standards: the notifier logs its version at startup, and
-CI runs lint, config/interpreter validation, compose validation, and
-CodeQL. No STD wire contract change — the paired STD release for the
-capture/interpreter features remains STD v0.6.0+.
+Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.5.0 adds the
+`image_info` wire key (running image digests and OCI labels), sent only to
+STD v0.12.0+ that advertises it via `/api/v1/meta` — older STD keeps
+working without it. It also adds the `/healthz` endpoint and image
+`HEALTHCHECK`, stops retrying 4xx, puts a 10 s timeout on every request,
+adds the `pytest` suite, and stops the DNS token being logged on failure.
 
 > Do not maintain a per-phase checklist here — it rots (this section
 > was stale by two minor releases before this note was added). The

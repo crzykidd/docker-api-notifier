@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-21
+
 ### Added
 - A `/healthz` HTTP endpoint (port 8080, set `HEALTH_PORT=0` to disable)
   reports the version, uptime, the Docker connection, and each notifier's
@@ -249,7 +251,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.1
