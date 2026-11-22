@@ -15,6 +15,7 @@
 | 0.5     | 2026-05-29 | Optional `HOST_NAME_OVERRIDE` env var for the DNS CNAME target. No PRD section changes — env vars are documented in the README per §4. Addresses environments (e.g. WSL/Docker Desktop) where the detected host name differs from the DNS name. |
 | 0.6     | 2026-05-29 | STD dispatch and the periodic refresh loop are now gated on STD being configured. §3.2 event-flow notes the loop starts only when `STD_URL`/`STD_API_TOKEN` are set; DNS-only deployments log the disabled state once instead of per-event. |
 | 0.7     | 2026-05-29 | Release prep for v0.4.1. §5 "Current State" bumped to v0.4.1; no behavioral content change — rows 0.5/0.6 already documented the shipped fixes. |
+| 0.8     | 2026-11-21 | v0.4.2 — registry move. Images now publish to GHCR (`ghcr.io/crzykidd/docker-api-notifier`); v0.4.2 is the final Docker Hub release and its image logs a startup "moved" notice (gated on the `REGISTRY_NOTICE=dockerhub` build arg). §5 bumped to v0.4.2; §8 documents both registries. No wire-contract change. |
 
 ---
 
@@ -320,15 +321,18 @@ See §11 for the YAML format and emission semantics.
 
 ---
 
-## 5. Current State (v0.4.1)
+## 5. Current State (v0.4.2)
 
-Tags shipped on `main`: v0.1.0 → v0.4.1. v0.3.0 (2026-05-12) resolved
+Tags shipped on `main`: v0.1.0 → v0.4.2. v0.3.0 (2026-05-12) resolved
 every issue listed in §5.2 below. v0.4.0 (2026-05-14) shipped the
 work originally scoped across three separate releases
 (v0.3.1 / v0.3.2 / v0.4.0); the consolidation is summarized in §7.
 v0.4.1 (2026-05-29) is a DNS/logging fix release — a DNS host-name
 override (`HOST_NAME_OVERRIDE`) and a fix for STD-unconfigured log
-flooding. It does not change the STD wire contract.
+flooding. It does not change the STD wire contract. v0.4.2
+(2026-11-21) moves image publishing to GHCR; it is the final Docker Hub
+release and has no behavior change beyond the Docker Hub image's
+startup "moved" notice.
 
 ### 5.1 What works today
 
@@ -639,6 +643,10 @@ STD's `ExposureObservation` schema beyond basic structure.
 - All work happens on `dev`. PR `dev` → `main` when ready to release.
 - Branch protection: require PR + green build check, block force-push,
   block deletion.
+- Images publish to `ghcr.io/crzykidd/docker-api-notifier`. v0.4.2 is
+  the final Docker Hub (`crzykidd/docker-api-notifier`) release; that
+  build sets `REGISTRY_NOTICE=dockerhub` so it logs a "moved to GHCR"
+  notice at startup. Docker Hub publishing is removed after v0.4.2.
 - Image tags follow `.github/workflows/docker-publish.yml`:
   - push to `dev` → `:dev` and `:sha-<short>`
   - push to `main` → `:latest` and `:sha-<short>`

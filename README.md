@@ -4,6 +4,15 @@
 ![Python](https://img.shields.io/badge/python-3.11-blue?logo=python)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+> [!IMPORTANT]
+> **The image has moved to GitHub Container Registry:
+> `ghcr.io/crzykidd/docker-api-notifier`.** v0.4.2 is the final release
+> published to Docker Hub (`crzykidd/docker-api-notifier`); that image
+> gets no further updates and logs a "moved" notice at startup. Change
+> your compose `image:` line to `ghcr.io/crzykidd/docker-api-notifier:latest`
+> (or pin a version, e.g. `:0.4.2`). Nothing else changes — same env
+> vars, labels, and volumes.
+
 A lightweight, event-driven Docker monitor that listens to the Docker socket
 on a host and fans out container events to multiple downstream notifiers.
 
@@ -233,7 +242,7 @@ treats as "no update" — existing exposure rows are preserved.
 ```yaml
 services:
   docker-api-notifier:
-    image: crzykidd/docker-api-notifier:latest
+    image: ghcr.io/crzykidd/docker-api-notifier:latest
     container_name: docker-api-notifier
     environment:
       - DNS_SERVER_TYPE=Technitium
@@ -327,10 +336,13 @@ Run pointed at your dev Docker socket and a scratch config dir.
 
 ## Versioning & Releases
 
+Images are published to `ghcr.io/crzykidd/docker-api-notifier`. Docker Hub
+(`crzykidd/docker-api-notifier`) received its final release at v0.4.2.
+
 - `:latest` follows the `main` branch — CI-verified pre-release.
 - `:dev` follows the `dev` branch — work in progress.
 - `:sha-<short>` is published for every push for exact pinning.
-- Semver-tagged images (`:0.3.0`, `:0`) are published from GitHub Releases.
+- Semver-tagged images (`:0.4.2`, `:0`) are published from GitHub Releases.
 
 Branch protection: PRs into `main` must pass the build check; force-push
 and branch deletion are blocked. Work happens on `dev`, opens a PR to
