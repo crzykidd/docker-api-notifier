@@ -23,6 +23,7 @@ from datetime import datetime
 
 import requests
 
+import health
 from logging_setup import get_logger
 from retry import with_retry
 
@@ -96,10 +97,13 @@ def register(**kwargs) -> None:
 
     # 4. Send, catching only RequestException (transient failures).
     #    Programming errors propagate to main.py's outer try/except.
+    #    Record the final outcome (after retries) for /healthz.
     try:
         _send(target_url, payload, headers)
         logger.debug(f"Successfully sent _template event for: {container_name}")
+        health.record_success("_template")  # surfaces in /healthz
     except requests.RequestException as e:
         logger.error(
             f"Failed to send _template event for '{container_name}' after retries: {e}"
         )
+        health.record_error("_template", e)

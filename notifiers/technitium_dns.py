@@ -3,15 +3,16 @@ from datetime import datetime
 
 import requests
 
+import health
 from logging_setup import get_logger
-from retry import with_retry
+from retry import REQUEST_TIMEOUT_SECONDS, with_retry
 
 logger = get_logger("dns_notifier")
 
 
 @with_retry
 def _do_dns_update(dns_url, params):
-    response = requests.get(dns_url, params=params)
+    response = requests.get(dns_url, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
     response.raise_for_status()
     return response
 
@@ -61,5 +62,9 @@ def register(*, container_fqdn, zone, value, **kwargs):
     try:
         response = _do_dns_update(dns_url, params)
         logger.info(f'DNS update response for {container_fqdn}: {response.text}')
+        health.record_success("dns")
     except requests.RequestException as e:
-        logger.error(f'DNS update failed for {container_name} after retries: {e}')
+        # requests embeds the full URL in its errors, and the token rides in
+        # the query string: never log the raw exception.
+        logger.error(f'DNS update failed for {container_name} after retries: {health.sanitize_error(e)}')
+        health.record_error("dns", e)

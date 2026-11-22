@@ -3,3 +3,6 @@ __pycache__/
 *.pyo
 *.pyd
 .env
+tests/
+requirements-dev.txt
+.pytest_cache/

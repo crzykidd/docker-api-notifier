@@ -9,8 +9,7 @@ name: CI
 # duplicate same-named check runs that can leave required checks stuck at
 # "Expected — Waiting for status to be reported" (seen in STD).
 #
-# Not applicable here: migration check (no database) and test suite (no tests
-# yet — exempt until a suite is added).
+# Not applicable here: migration check (no database).
 
 on:
   push:
@@ -96,3 +95,15 @@ jobs:
       # docker-compose.yml interpolates ${DNS_SERVER_URL} etc.; unset vars
       # only warn, so no .env is needed.
       - run: docker compose config --quiet
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      # Tests fake the Docker client and the HTTP layer: no daemon, no /config.
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q

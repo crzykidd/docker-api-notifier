@@ -19,6 +19,9 @@
 | 0.9     | 2026-11-21 | Unreleased — Docker Hub publishing removed; GHCR is the only registry. §8 updated; the `REGISTRY_NOTICE` build arg and startup notice are gone. |
 | 0.10    | 2026-11-21 | Unreleased — adopts the `code-checkin-and-pr`, `handoff-prompt-workflow`, and `release-prep-and-cut` standards (see `standards.md`). §8 documents the `VERSION` file, CI checks, GHCR retention, and the `/release-prep` → `/release-cut` flow. §5.3 lint item resolved. Version logged at startup. |
 | 0.11    | 2026-11-21 | Release prep for v0.4.3 (first release under the adopted standards). §5 bumped to v0.4.3. Ships rows 0.9–0.10: GHCR-only publishing, the `VERSION` file + startup version log, and the new CI/CodeQL/retention. No wire-contract change. |
+| 0.12    | 2026-11-21 | Unreleased (targets v0.5.0) — `image_info` (running image digests and OCI labels) sent to STD v0.12.0+, gated on STD's `/api/v1/meta`; opt-out `STD_SEND_IMAGE_INFO`. New §9.4 documents the wire contract, the capability gate, and the 0.5.0 ↔ STD 0.12.0+ pairing. Retry policy changed (§5.1, §5.2 N1): 4xx is no longer retried; every outbound request has a 10 s timeout. A `pytest` suite and a CI `Test` job now exist (§10 test-coverage question resolved). |
+| 0.13    | 2026-11-21 | Unreleased (targets v0.5.0) — `/healthz` health endpoint. §3 diagram and §3.1 add `health.py` and its HTTP daemon thread; §3.3 step 4 says notifiers record their final outcome for it; §4 documents `HEALTH_PORT`; new §4.2 documents the endpoint, 200/503 semantics (downstream outages never make it unhealthy) and the image `HEALTHCHECK`. No wire-contract change. |
+| 0.14    | 2026-11-21 | Release prep for v0.5.0. §5 bumped to v0.5.0 (ToC link fixed). Ships rows 0.12–0.13: `image_info` to STD v0.12.0+ gated on `/api/v1/meta`, the `/healthz` endpoint and image `HEALTHCHECK`, 4xx no longer retried, 10 s request timeouts, the `pytest` suite, and a fix that stops the DNS token being written to the log. Adds the `image_info` wire key (STD v0.12.0+, capability-gated). |
 
 ---
 
@@ -28,7 +31,7 @@
 2. [Scope](#2-scope)
 3. [Architecture](#3-architecture)
 4. [Configuration Model](#4-configuration-model)
-5. [Current State (v0.4.1)](#5-current-state-v041)
+5. [Current State (v0.5.0)](#5-current-state-v050)
 6. [v0.3.0 — Cleanup Release](#6-v030--cleanup-release)
 7. [Delivered in v0.4.0](#7-delivered-in-v040)
 8. [Versioning, Branches, and Releases](#8-versioning-branches-and-releases)
@@ -131,6 +134,9 @@ startup (see §1.3 and §11).
 │  │   ├─ event subscription│    │
 │  │   └─ periodic re-scan  │    │
 │  │                        │    │
+│  │   health.py (/healthz) │    │
+│  │   └─ HTTP daemon thread│    │
+│  │                        │    │
 │  │   interpreter_loader   │    │
 │  │   ├─ builtin YAMLs     │    │
 │  │   └─ user YAMLs (mount)│    │
@@ -149,7 +155,13 @@ startup (see §1.3 and §11).
 ### 3.1 Module responsibilities
 
 - **`main.py`** — Docker client setup, event subscription, label parsing,
-  per-notifier dispatch, periodic re-scan thread.
+  per-notifier dispatch, periodic re-scan thread. Starts the health
+  endpoint before the boot scan.
+- **`health.py`** — lock-guarded health state (event/refresh counters,
+  per-notifier last success/error), the `/healthz` JSON snapshot, and a
+  stdlib `ThreadingHTTPServer` in a daemon thread (`HEALTH_PORT`, default
+  8080, `0` disables). `main.py` and each notifier's `register()` call its
+  recorders. `healthcheck.py` is the Docker `HEALTHCHECK` probe.
 - **`notifiers/<target>.py`** — one module per downstream system. Each
   exposes a `register(...)` function and owns its own retry policy,
   authentication, and payload shape.
@@ -254,6 +266,8 @@ A `register()` implementation must:
 3. Send the request, using `@with_retry` on the network call.
 4. Catch `requests.RequestException` after retries; log and return.
    Do not let transient failures kill the event loop in `main.py`.
+   Record the final outcome for `/healthz` (`health.record_success(name)`
+   / `health.record_error(name, exc)`); see `notifiers/_template.py`.
 5. Not catch broader exceptions — programming errors should propagate
    to `main.py`'s outer try/except for visibility.
 
@@ -322,11 +336,31 @@ intended for production.
 
 See §11 for the YAML format and emission semantics.
 
+### 4.2 Health endpoint (v0.5.0+)
+
+`HEALTH_PORT` (default `8080`; `0` disables; non-integer falls back to
+the default with a warning) controls the `/healthz` endpoint served by
+`health.py`. `GET /healthz` returns JSON: version, start time and uptime,
+host, Docker connection (cached `ping()`, <= 15 s), event/refresh-loop
+activity, loaded interpreters, and per-notifier `configured` /
+last-success / last-error / counts (the STD block also carries the cached
+`/api/v1/meta` gate state). HTTP 200 / `"ok"` when Docker answers and the
+event loop runs; 503 / `"unhealthy"` when Docker is unreachable.
+**Downstream (STD, Technitium) failures never make it unhealthy**: they
+appear in the per-notifier fields only, so an auto-restart setup cannot
+restart-loop the notifier over another system's outage. Error strings are
+truncated to 200 chars and credential-scrubbed (the DNS token rides in a
+query string that `requests` echoes in exceptions). Unknown paths get a
+JSON 404; a bind failure logs an error and the notifier runs without the
+endpoint. The image declares `EXPOSE 8080` and a `HEALTHCHECK` running
+`healthcheck.py` (exits 0 when `HEALTH_PORT=0`). This is notifier-only
+and does not touch the STD wire contract.
+
 ---
 
-## 5. Current State (v0.4.3)
+## 5. Current State (v0.5.0)
 
-Tags shipped on `main`: v0.1.0 → v0.4.3. v0.3.0 (2026-05-12) resolved
+Tags shipped on `main`: v0.1.0 → v0.5.0. v0.3.0 (2026-05-12) resolved
 every issue listed in §5.2 below. v0.4.0 (2026-05-14) shipped the
 work originally scoped across three separate releases
 (v0.3.1 / v0.3.2 / v0.4.0); the consolidation is summarized in §7.
@@ -338,6 +372,10 @@ release and has no behavior change beyond the Docker Hub image's
 startup "moved" notice. v0.4.3 (2026-11-21) is the first GHCR-only
 release: it logs its version at startup and is the first release cut
 under the adopted CI and release standards. No wire-contract change.
+v0.5.0 (2026-11-21) sends `image_info` to STD v0.12.0+ (only when STD's
+`/api/v1/meta` advertises it; older STD keeps working), adds the
+`/healthz` endpoint and image `HEALTHCHECK`, stops retrying 4xx, adds
+10 s request timeouts, and stops the DNS token leaking into the log.
 
 ### 5.1 What works today
 
@@ -346,6 +384,13 @@ under the adopted CI and release standards. No wire-contract change.
 - Periodic re-scan thread.
 - DNS notifier with retry, requests-based, raises on HTTP 4xx/5xx.
 - STD notifier with `tenacity`-backed retry, bearer-token auth.
+- Shared retry policy (`retry.py`): retries connection errors, timeouts
+  and HTTP 5xx; a 4xx raises immediately (no retry). Every outbound
+  request passes `REQUEST_TIMEOUT_SECONDS` (10 s).
+- Running-image reporting (`image_info`) to STD v0.12.0+, gated on
+  `/api/v1/meta` (see §9.4).
+- `pytest` suite under `tests/` (fakes Docker and HTTP), run by the CI
+  `Test` job.
 - Label-driven notifier opt-in via `dockernotifier.notifiers`.
 - Per-host STD opt-out via `STD_REPORT_ALL_CONTAINERS` (see §7.2).
 - Network and port capture forwarded to STD on every payload (see §7.3).
@@ -358,7 +403,7 @@ under the adopted CI and release standards. No wire-contract change.
 
 | ID  | Area                  | Issue                                                                                                  |
 |-----|-----------------------|--------------------------------------------------------------------------------------------------------|
-| N1  | DNS notifier          | **Resolved in v0.3.0.** No retry on transient failure. STD notifier uses `tenacity`; DNS doesn't. Asymmetric. Fixed by extracting a shared `with_retry` decorator (`retry.py`) consumed by both notifiers. DNS also now calls `raise_for_status()` so HTTP 4xx/5xx trigger retries instead of being silently logged as successes. |
+| N1  | DNS notifier          | **Resolved in v0.3.0.** No retry on transient failure. STD notifier uses `tenacity`; DNS doesn't. Asymmetric. Fixed by extracting a shared `with_retry` decorator (`retry.py`) consumed by both notifiers. DNS also now calls `raise_for_status()` so HTTP errors are no longer silently logged as successes. (Since v0.5.0 only 5xx is retried; a 4xx raises immediately, see §9.4.) |
 | N2  | DNS notifier          | **Resolved in v0.3.0.** `trigger_reason` parameter accepted but never used. Removed from the `register()` signature; the trigger log line now reads `action` from the common kwargs contract instead, so it reports the real Docker action (`start`, `boot`, `refresh`) rather than the literal default `"event"`. |
 | N3  | Logging               | **Resolved in v0.3.0.** Log handler setup duplicated across `main.py`, `notifiers/technitium_dns.py`, and `notifiers/service_tracker_dashboard.py`. |
 | N4  | Event handling        | **Resolved in v0.3.0.** `"refresh"` is in `NOTIFIER_TRIGGERS["service-tracker-dashboard"]` but not in `watched_actions`, so it never fires from the event stream. The periodic loop is the only path that uses it. |
@@ -705,12 +750,56 @@ If notifier v0.4.0 is deployed against STD v0.5.x, STD's strict
 pydantic validator rejects the payload (unknown keys). Operators
 must upgrade STD before the notifier.
 
+### 9.4 Running image (`image_info`) — notifier v0.5.0 / STD v0.12.0+
+
+STD 0.12.0 (API revision 5) checks moving tags (`latest`, `stable`)
+against the registry's current digest. Only the notifier knows the
+digest the container actually runs, so it sends an optional
+`image_info` object on `/api/v1/register`:
+
+| Field | Source | Limit |
+|---|---|---|
+| `id` | `container.attrs["Image"]` (the image id) | 100 |
+| `repo_digests` | `images.get(id).attrs["RepoDigests"]`, raw; malformed items dropped | 20 items, each `^[^@\s]{1,255}@sha256:[0-9a-f]{64}$` |
+| `created` | image `Created` | 64 |
+| `version` / `revision` / `source` | OCI labels `org.opencontainers.image.version` / `.revision` / `.source` | 128 / 128 / 512 |
+
+`None` values and empty lists are omitted. STD's reading: absent or
+`null` = keep stored values; present = replace (omitted fields are
+cleared). The image is resolved **by id, not tag**, so a pulled-but-not-
+recreated container still reports the digest it really runs. Lookups are
+best effort (a pruned image or API error means no `image_info`, never a
+failed register) and cached by image id.
+
+**Capability gate.** STD's schema is `extra="forbid"`, so the field is
+sent only when `GET <STD_URL>/api/v1/meta` (unauthenticated; returns
+`std_version`, `api_revision`, `features`) lists `"image_info"`. A 404
+(STD < 0.10.0), a connection error or a bad body means "not supported".
+The answer is cached (guarded by a lock; the refresh thread and event
+loop both register) and re-checked when the `X-STD-API-Revision`
+response header changes, after a register 400 that blames `image_info`
+(`unknown_keys` contains it, or a `details[].loc[0]` is `image_info`;
+the register is retried once without it), and, while the last check
+failed, at most every 5 minutes. STD's version and API revision are
+logged at startup and when they change; "does not accept image_info" is
+logged once. `std_status()` exposes the cached state.
+
+Opt-out: `STD_SEND_IMAGE_INFO=false`. DNS never receives `image_info`.
+
+**Pairing:** notifier v0.5.0 ↔ STD v0.12.0+. STD ships first (it has);
+older STD keeps working because the field is simply not sent.
+
+**HTTP behavior (both notifiers).** Retries cover connection errors,
+timeouts and 5xx only; a 4xx raises immediately. All outbound requests
+use a 10 s timeout (`retry.REQUEST_TIMEOUT_SECONDS`).
+
 ---
 
 ## 10. Open Questions
 
-- **Test coverage.** No tests exist today. Worth investing in a small
-  suite that fakes the Docker client and asserts dispatch behavior?
+- **Test coverage.** *Resolved:* a `pytest` suite under `tests/` fakes
+  the Docker client and HTTP layer; CI runs it as the `Test` job. Grow
+  it as behavior is added.
 - **Health check of notifier itself.** Currently the only liveness
   signal is "the container is running." A `/health` endpoint or
   heartbeat to STD might be valuable.

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-21
+
+### Added
+- A `/healthz` HTTP endpoint (port 8080, set `HEALTH_PORT=0` to disable)
+  reports the version, uptime, the Docker connection, and each notifier's
+  last success/error; the image now has a Docker `HEALTHCHECK`. A STD or
+  DNS outage doesn't mark the notifier unhealthy.
+- Sends the running image (digests and OCI labels) to Service Tracker
+  Dashboard 0.12.0+ for its image update check; only when STD advertises
+  support; opt out with `STD_SEND_IMAGE_INFO=false`. Logs STD's API
+  revision at startup.
+- Automated test suite (`pytest`, `requirements-dev.txt`) and a CI `Test`
+  job. Tooling only; no change to how the notifier runs.
+
+### Changed
+- HTTP 4xx responses from STD or Technitium DNS are no longer retried
+  (retries now cover connection errors, timeouts, and 5xx only), so a bad
+  request or token fails immediately instead of after the backoff window.
+- Every request to STD and Technitium DNS now has a 10-second timeout; a
+  hung server no longer blocks the notifier indefinitely.
+
+### Security
+- A failed Technitium DNS update no longer writes `DNS_SERVER_API_TOKEN`
+  into the log (`/config/notifier.log` and stdout); the error is logged
+  with the URL query string and credentials removed. Earlier versions
+  logged the token on every DNS failure, so consider rotating it if your
+  logs are shipped or shared.
+
 ## [0.4.3] — 2026-11-21
 
 ### Added
@@ -223,7 +251,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.1

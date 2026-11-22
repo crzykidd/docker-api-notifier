@@ -8,7 +8,7 @@ Template from standards/release-prep-and-cut @ v1.1.0
 (crzynet/homelab-configs/standards/release-prep-and-cut/README.md),
 placeholders filled in for docker-api-notifier:
 
-  `VERSION`             VERSION  (repo root; one bare-semver line)
+  <VERSION_FILE>             VERSION  (repo root; one bare-semver line)
   <VERSION_LITERAL>          the file's entire content, e.g. 0.4.2
   <README_BADGE_PATTERN>     none — the README has no version badge
   <README_WHATSNEW_SECTION>  none — the README has no What's New section
@@ -226,7 +226,13 @@ in `docker-publish.yml`), from the repo root, in order:
    docker compose config --quiet
    ```
 
-4. **Image build**, then confirm the image logs the new version at startup:
+4. **Test** (the `Test` job in `ci.yml`; fakes Docker and HTTP, no daemon needed):
+
+   ```
+   uv run --python 3.11 --with-requirements requirements-dev.txt pytest -q
+   ```
+
+5. **Image build**, then confirm the image logs the new version at startup:
 
    ```
    docker build -t docker-api-notifier:release-check . && \

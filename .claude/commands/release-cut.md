@@ -8,9 +8,9 @@ Template from standards/release-prep-and-cut @ v1.1.0
 (crzynet/homelab-configs/standards/release-prep-and-cut/README.md),
 placeholders filled in for docker-api-notifier:
 
-  `VERSION`         VERSION
-  `CI`     "CI"                          (.github/workflows/ci.yml)
-  `Build and Push Docker Image`     "Build and Push Docker Image" (.github/workflows/docker-publish.yml)
+  <VERSION_FILE>         VERSION
+  <MAIN_CI_WORKFLOW>     "CI"                          (.github/workflows/ci.yml)
+  <PUBLISH_WORKFLOW>     "Build and Push Docker Image" (.github/workflows/docker-publish.yml)
   <RELEASE_IMAGE_TAGS>   ghcr.io/crzykidd/docker-api-notifier :latest, :<semver>, :<major>
 -->
 

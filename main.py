@@ -4,6 +4,8 @@ import time
 
 import docker
 
+import health
+import image_info
 import interpreter_loader
 from logging_setup import get_logger
 from notifiers import service_tracker_dashboard, technitium_dns
@@ -54,6 +56,13 @@ if not STD_CONFIGURED:
         "(no STD reporting, no periodic refresh loop)"
     )
 
+# Opt-out for sending the running image's digests and OCI labels to STD
+# (`image_info`). Even when on, it is only sent to an STD whose
+# /api/v1/meta advertises support. Never reaches the DNS notifier.
+STD_SEND_IMAGE_INFO = _parse_bool_env("STD_SEND_IMAGE_INFO", default=True)
+if STD_CONFIGURED and not STD_SEND_IMAGE_INFO:
+    logger.info("STD_SEND_IMAGE_INFO is off — not sending image info to STD")
+
 # Debug-only: re-load interpreters on every event instead of once at
 # startup. Not for production use; intended for iterating on YAML
 # files without bouncing the notifier.
@@ -92,6 +101,7 @@ def periodic_update_loop(docker_host):
                 handle_container_event(container, docker_host, action="refresh")
             except Exception as e:
                 logger.error(f"Refresh failed for {container.name}: {e}")
+        health.record_refresh()
         time.sleep(STD_REFRESH_SECONDS)
 
 
@@ -234,6 +244,12 @@ def handle_container_event(container, docker_host, action):
             if key.startswith("dockernotifier.std.")
         }
         std_extras["exposure_observations"] = _run_interpreters(labels)
+        # A `dockernotifier.std.image_info` label must not leak into the payload.
+        std_extras.pop("image_info", None)
+        if STD_SEND_IMAGE_INFO and service_tracker_dashboard.image_info_supported():
+            info = image_info.lookup(container)
+            if info:
+                std_extras["image_info"] = info
         service_tracker_dashboard.register(**base_kwargs, **std_extras)
 
 
@@ -257,7 +273,28 @@ def _run_interpreters(labels):
 def main():
     client = docker.from_env()
     docker_host = get_host_name()
-    logger.info(f"Starting Docker API Notifier version {get_version()} on host: {docker_host}")
+    version = get_version()
+    logger.info(f"Starting Docker API Notifier version {version} on host: {docker_host}")
+
+    # Start the /healthz endpoint first so it answers during a slow boot
+    # scan. A separate Docker client keeps health pings off the event
+    # stream's connection. Failure to start it never stops notifying.
+    health.configure(
+        version=version,
+        host=docker_host,
+        refresh_enabled=STD_CONFIGURED,
+        refresh_interval=STD_REFRESH_SECONDS if STD_CONFIGURED else None,
+        interpreters=[i.name for i in INTERPRETER_LOAD_RESULT.interpreters],
+    )
+    try:
+        health.configure(docker_client=docker.from_env())
+        health.start_from_env()
+    except Exception as e:
+        logger.error(f"Health endpoint setup failed: {e}; continuing without it")
+
+    if STD_CONFIGURED:
+        # Logs STD's version and API revision and caches what it supports.
+        service_tracker_dashboard.check_meta_at_startup()
 
     logger.info("Running boot-time scan of existing containers...")
     for container in client.containers.list():
@@ -274,23 +311,28 @@ def main():
     else:
         logger.info("Periodic refresh loop not started — STD integration disabled")
 
-    for event in client.events(decode=True):
-        if event.get("Type") != "container":
-            continue
-        action = event.get("Action")
-        if action not in WATCHED_DOCKER_ACTIONS:
-            continue
-        container_id = event.get("Actor", {}).get("ID") or event.get("id")
-        if not container_id:
-            continue
-        try:
-            container = client.containers.get(container_id)
-            handle_container_event(container, docker_host, action=action)
-        except docker.errors.NotFound:
-            pass
-        except Exception as e:
-            logger.error(f"Failed to handle {action} event for {container_id}: {e}")
+    health.set_event_loop(True)
+    try:
+        for event in client.events(decode=True):
+            if event.get("Type") != "container":
+                continue
+            action = event.get("Action")
+            if action not in WATCHED_DOCKER_ACTIONS:
+                continue
+            container_id = event.get("Actor", {}).get("ID") or event.get("id")
+            if not container_id:
+                continue
+            health.record_event()
+            try:
+                container = client.containers.get(container_id)
+                handle_container_event(container, docker_host, action=action)
+            except docker.errors.NotFound:
+                pass
+            except Exception as e:
+                logger.error(f"Failed to handle {action} event for {container_id}: {e}")
 
+    finally:
+        health.set_event_loop(False)
 
 if __name__ == "__main__":
     main()

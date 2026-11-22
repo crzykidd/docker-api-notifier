@@ -165,6 +165,8 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
 - Python 3.11
 - `docker` (Docker SDK for Python) — Docker event subscription
 - `requests` — DNS notifier HTTP calls
+- `health.py` — `/healthz` endpoint (stdlib `http.server`, no extra
+  dependency) and the health state recorded by `main.py` and the notifiers
 - `tenacity` — retry-with-backoff for downstream notifier calls
 - `PyYAML` — interpreter YAML loading
 - Container: single-image Docker, no compose orchestration of its own
@@ -192,14 +194,14 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
 
 ## Build Status
 
-Current shipped release: **v0.4.3** (latest tag on `main`).
+Current shipped release: **v0.5.0** (latest tag on `main`).
 
-Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.4.3 is the
-first GHCR-only release (Docker Hub is frozen at v0.4.2) and the first cut
-under the adopted standards: the notifier logs its version at startup, and
-CI runs lint, config/interpreter validation, compose validation, and
-CodeQL. No STD wire contract change — the paired STD release for the
-capture/interpreter features remains STD v0.6.0+.
+Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.5.0 adds the
+`image_info` wire key (running image digests and OCI labels), sent only to
+STD v0.12.0+ that advertises it via `/api/v1/meta` — older STD keeps
+working without it. It also adds the `/healthz` endpoint and image
+`HEALTHCHECK`, stops retrying 4xx, puts a 10 s timeout on every request,
+adds the `pytest` suite, and stops the DNS token being logged on failure.
 
 > Do not maintain a per-phase checklist here — it rots (this section
 > was stale by two minor releases before this note was added). The
@@ -214,12 +216,13 @@ project-specific facts are:
 
 - **CI** (`.github/workflows/ci.yml`, push to `dev`/`main` only): `Lint`
   (ruff 0.15.17, rules in `ruff.toml`), `Config validation` (every YAML/JSON
-  parses, and every interpreter YAML passes `interpreter_loader`), and
-  `Compose validation`. No migration check (no database) and no test job
-  (no tests yet). CodeQL runs as GitHub's default code-scanning setup.
+  parses, and every interpreter YAML passes `interpreter_loader`),
+  `Compose validation`, and `Test` (`pytest -q` over `tests/`, which fake
+  the Docker client and HTTP; deps in `requirements-dev.txt`). No migration
+  check (no database). CodeQL runs as GitHub's default code-scanning setup.
 - **Required checks on `main`** (ruleset "Require PR for Main"): `build`
   (image build, `docker-publish.yml`), `Lint`, `Config validation`,
-  `Compose validation`, plus a CodeQL `code_scanning` rule. CodeQL must
+  `Compose validation`, `Test`, plus a CodeQL `code_scanning` rule. CodeQL must
   complete, but its findings don't block merge (thresholds `none`) —
   triage them in the repo's Security → Code scanning view.
 - **GHCR is the only registry** (`ghcr.io/crzykidd/docker-api-notifier`,
@@ -263,7 +266,7 @@ contract.
 
 - **STD owns the contract.** Its pydantic schemas define a valid
   payload and use `extra="forbid"` — unknown keys get rejected with
-  HTTP 422, not ignored.
+  HTTP 400 (`unknown_keys` in the body), not ignored.
 - **This notifier is the producer.** It sends what STD documents. The
   wire format lives in `notifiers/service_tracker_dashboard.py`
   (`_to_canonical`).
@@ -275,7 +278,7 @@ side (STD) must ship before the schema-sending side (this notifier).**
 
 - Adding a field this notifier will send → STD must accept it first.
   Ship STD's schema change, *then* ship the notifier that emits the
-  field. Shipping the notifier first means STD 422s every payload from
+  field. Shipping the notifier first means STD 400s every payload from
   upgraded hosts.
 - A field STD wants to consume → STD can add the column/UI, but it
   stays empty until a notifier version populates it. Feature isn't live
@@ -299,12 +302,22 @@ The notifier must keep older STD versions working:
   returning `None` vs. `[]` is the distinction, and
   `_run_interpreters` in `main.py` preserves it.
 
+- `image_info` (the running image's digests and OCI labels) requires
+  STD v0.12.0+ (API revision 5). It is sent **only** when STD's
+  unauthenticated `GET /api/v1/meta` lists `"image_info"` in `features`;
+  the answer is cached and re-checked when the `X-STD-API-Revision`
+  response header changes or STD 400s the field. Opt out with
+  `STD_SEND_IMAGE_INFO=false`. The DNS notifier never receives it.
+
 ### Version pairing history (informational, not the rule)
 
 - Notifier v0.3.0 switched to canonical keys + `/api/v1/register`;
   requires STD v0.5.0+.
 - Notifier v0.4.0 added capture fields + the interpreter mechanism
   (`exposure_observations`); requires STD v0.6.0+.
+- Notifier v0.5.0 added `image_info`, gated on STD's `/api/v1/meta`;
+  pairs with STD v0.12.0+ (older STD keeps working, it just never gets
+  the field).
 
 ## Notifier Module Conventions
 
@@ -314,7 +327,9 @@ A reference template is at `notifiers/_template.py`.
 In short: one module per downstream system under `notifiers/`,
 exposing `register(**kwargs)`. Modules consume shared logging
 (`logging_setup`) and shared retry (`retry`). They own their own
-auth and wire format.
+auth and wire format, and record their final outcome with
+`health.record_success()` / `health.record_error()` (surfaced by
+`/healthz`).
 
 When adding a new notifier: copy `notifiers/_template.py`, replace
 the placeholders, wire it into `main.py`'s `NOTIFIER_TRIGGERS` and
