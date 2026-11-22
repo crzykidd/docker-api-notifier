@@ -17,8 +17,8 @@ The structure below follows the notifier module contract documented
 in PRD section 3.3.
 """
 
-import os
 import json
+import os
 from datetime import datetime
 
 import requests

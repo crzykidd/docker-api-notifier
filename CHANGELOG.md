@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The notifier logs its version at startup
+  (`Starting Docker API Notifier version X.Y.Z on host: ...`), so you can
+  tell which release a host is running from its logs.
+
+### Changed
+- Every change headed for `main` now runs lint, config and
+  interpreter-YAML validation, compose validation, an image build, and
+  CodeQL code scanning. Old GHCR images are pruned automatically: the
+  newest 30 `:sha-*` and 15 semver images are kept, and `:latest`, `:dev`,
+  and `:<major>` are never deleted. No change to how the notifier runs.
+
 ### Removed
 - Docker Hub publishing. Images are published only to
   `ghcr.io/crzykidd/docker-api-notifier`; `crzykidd/docker-api-notifier`

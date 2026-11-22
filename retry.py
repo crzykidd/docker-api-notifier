@@ -34,9 +34,9 @@ implement explicit single-attempt error handling instead.
 import requests
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 # Policy values — change here, not at call sites.

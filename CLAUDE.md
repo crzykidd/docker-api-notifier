@@ -26,13 +26,139 @@ commit as the code**. This is not optional and not deferrable:
 > trust the code and CHANGELOG over the PRD where they disagree, and
 > flag any contradiction you notice rather than propagating it.
 
+## Standards
+
+This project adopts crzynet engineering standards from `homelab-configs`.
+**Read [`standards.md`](standards.md) at session start** whenever the work
+could touch anything a standard governs (branching, commits, CI, releases,
+handoff prompts). It lists each adopted standard with its pinned version.
+
+<!--
+Source: standards/handoff-prompt-workflow @ v2.0.0 (crzynet/homelab-configs).
+Paste the section below verbatim into the adopting project's CLAUDE.md.
+The full standard (the plan→decide→execute→document principle, model selection,
+TEMPLATE, adoption checklist) lives at:
+https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/handoff-prompt-workflow/README.md
+-->
+
+## Handoff prompts (operational rules)
+
+This project adopts the `handoff-prompt-workflow` standard. The full why-and-how lives at
+the source above; the rules below are the per-session do/don'ts an agent must honor by
+default:
+
+- **Edit-size threshold — decide by how much you'll change:**
+  - A genuinely small change — roughly **one or two files and a few lines** (a typo, one
+    config value, a one-line fix) — do it **in-session**, no prompt.
+  - **Anything bigger requires a handoff prompt** — more than ~2 files, a multi-step
+    change, a new feature, or any edit large enough that a fresh context would run it
+    more cleanly. **When in doubt, write the prompt.**
+- **A handoff prompt is a file in `prompts/`** — one per task, from `prompts/TEMPLATE.md`,
+  with frontmatter (`name`, `status`, `created`, `model`, `completed`, `result`). Set
+  `model:` from the task type: **Opus** for research/planning, **Sonnet** for coding;
+  mixed defaults to Opus.
+- **Execute the prompt by spawning a subagent — don't hand the user a command.** Spawn an
+  agent on the prompt's `model:`, let it run the prompt end-to-end, and **report the
+  outcome back**. The agent gets a fresh context; you stay in the loop.
+  - **Manual fallback only on explicit request.** If the user says e.g. "use manual
+    prompts for this," give them
+    `claude --model <model> "Read prompts/<file>.md and execute it as your task."`
+    instead of spawning.
+- **Check the working tree before editing.** Run `git status --porcelain`, cross-reference
+  the files the plan touches; if any have uncommitted changes, list them and ask before
+  touching. Surface unrelated dirty files once; they don't block.
+- **The prompt self-updates and moves when done.** The executing agent sets its
+  frontmatter (`status`/`completed`/`result`) and `git mv`s the file into `prompts/done/`
+  (success) or `prompts/failed/` (failure).
+- **One commit at the end; the prompt bundles in.** The prompt file is **not** committed
+  up front — it lands in the single end commit alongside the work and the prompt move.
+  Propose ONE commit (files list + one-line message), ask `y/n`, stage only those specific
+  paths. **Never `git add -A`, never auto-commit, never push.** A spawned agent prepares
+  the tree and reports the proposed commit back; the orchestrating session surfaces the
+  `y/n`.
+- **Record non-obvious decisions** (approach changes, rejected alternatives, workarounds)
+  in `docs/decisions.md`, newest at top.
+
+If you're unsure whether an action would violate one of the above, stop and ask before
+acting.
+
+<!--
+Source: standards/code-checkin-and-pr @ v1.2.0 (crzynet/homelab-configs).
+Paste the section below verbatim into the adopting project's CLAUDE.md.
+The full standard (publishing matrix, retention, CI check definitions) lives at:
+https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/code-checkin-and-pr/README.md
+-->
+
+## Code check-in (operational rules)
+
+This project adopts the `code-checkin-and-pr` standard. The full why-and-how lives at
+the source above; the rules below are the per-session do/don'ts a coding agent must
+honor by default:
+
+- **Never push directly to `main`.** `main` is protected. All changes land via a pull
+  request from `dev` → `main`, and only when every required check is green.
+- **Day-to-day work happens on `dev`** (or a short-lived branch off `dev`). Push to
+  `dev` freely.
+- **Commit message prefixes are required** — Conventional-Commits style:
+  - `feat:` — new user-facing feature
+  - `fix:` — bug fix
+  - `chore:` — config, tooling, dependencies, maintenance
+  - `docs:` — documentation-only changes
+- **Do not add `Co-authored-by:` trailers** unless the user explicitly asks.
+- **Doc updates ship in the same commit as the code they describe** — never as a
+  follow-up commit.
+- **Never bypass hooks** (no `--no-verify`, `--no-gpg-sign`, etc.) unless the user
+  explicitly asks. If a hook fails, fix the underlying issue.
+- **Stable releases are tagged from `main` only.** Don't tag from `dev`.
+
+If you're unsure whether an action would violate one of the above, stop and ask before
+acting.
+
+<!--
+Source: standards/release-prep-and-cut @ v1.1.0 (crzynet/homelab-configs).
+Paste the section below verbatim into the adopting project's CLAUDE.md.
+The full standard (two-phase prep/cut workflow, archive trigger, validation
+steps, adoption checklist) lives at:
+https://gitea.crzynet.com/crzynet/homelab-configs/src/branch/main/standards/release-prep-and-cut/README.md
+-->
+
+## Release process (operational rules)
+
+This project adopts the `release-prep-and-cut` standard. The full why-and-how
+lives at the source above; the rules below are the per-session do/don'ts a
+coding agent must honor by default:
+
+- **The version is stored BARE in the source-of-truth file** — no `v` prefix
+  anywhere in code. The `v` prefix is added in exactly one place: the git tag
+  and matching GitHub release name. Don't add it to README badges, CHANGELOG
+  headers, in-code image tags, or anywhere else.
+- **`CHANGELOG.md` is the single source of truth for release notes.** The PR
+  description (set by `/release-prep`) and the GitHub release body (set by
+  `/release-cut`) reuse the **same section verbatim**. Never author release
+  notes twice.
+- **One commit per release prep.** Version bump + changelog roll + every doc
+  sync ship in a single `chore(release): prepare v<version>` commit. No
+  `Co-authored-by:` trailers.
+- **Never re-tag.** If `v<version>` already exists as a local tag, a remote
+  tag, or a GitHub release, STOP. Never delete-and-recreate; never `--force`.
+  Pick the next version instead.
+- **`/release-cut` only after the PR has merged and CI is green.** The
+  publish-to-`main` workflow must have already pushed `:latest` images to the
+  registry before `/release-cut` runs. If you cannot confirm both — STOP and
+  tell the user to wait.
+- **The release tag is the only thing the cut command writes to `main`.** Both
+  the prep commit and any follow-up docs commit land on `dev` and reach `main`
+  only via PR. Never push directly to `main` as part of a release.
+
+If you're unsure whether an action would violate one of the above, stop and
+ask before acting.
+
 ## Commit style
 
-- `feat:` new feature
-- `chore:` config, tooling, maintenance
-- `fix:` bug fix
-- `docs:` documentation only changes
-- `refactor:` non-behavior-changing internal cleanup
+The prefixes (`feat:`, `fix:`, `chore:`, `docs:`) and the no-`Co-authored-by`
+rule come from the `code-checkin-and-pr` snippet above. Project extension:
+`refactor:` for non-behavior-changing internal cleanup. A release prep uses
+`chore(release): prepare v<version>`.
 
 ## Stack
 
@@ -40,13 +166,16 @@ commit as the code**. This is not optional and not deferrable:
 - `docker` (Docker SDK for Python) — Docker event subscription
 - `requests` — DNS notifier HTTP calls
 - `tenacity` — retry-with-backoff for downstream notifier calls
+- `PyYAML` — interpreter YAML loading
 - Container: single-image Docker, no compose orchestration of its own
   - `Dockerfile` — production image
   - `docker-compose.yml` — example deployment
 
 ## Configuration
 
-- All configuration is via environment variables. There is no config file.
+- Configuration is via environment variables; there is no central config
+  file. The one on-disk input is interpreter YAML (`interpreters/builtin/`
+  baked in, `/app/interpreters/user/` operator-mounted) — see PRD §11.
 - Per-container behavior comes from `dockernotifier.*` labels on the
   containers being watched.
 - Full ENV reference: `README.md` → Environment Variables section.
@@ -57,12 +186,16 @@ commit as the code**. This is not optional and not deferrable:
 - Project history (structural events, milestones) at `docs/HISTORY.md`.
 - `README.md` at the root — keep it current with what has been built.
 - Commit doc updates in the same commit as the code changes they describe.
+- Adopted engineering standards and their pinned versions at `standards.md`.
+- Handoff prompts (live queue + `done/`/`failed/` archive) in `prompts/`.
+- Non-obvious decisions (newest at top) at `docs/decisions.md`.
 
 ## Build Status
 
 Current shipped release: **v0.4.2** (latest tag on `main`).
 
-Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.4.2 is the registry-move release: images now publish to
+Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.4.2 is the
+registry-move release: images now publish to
 GHCR (`ghcr.io/crzykidd/docker-api-notifier`) and v0.4.2 is the final
 Docker Hub release (its image logs a "moved" notice). No STD wire
 contract change — the paired STD release for the capture/interpreter
@@ -71,35 +204,36 @@ features remains STD v0.6.0+.
 > Do not maintain a per-phase checklist here — it rots (this section
 > was stale by two minor releases before this note was added). The
 > CHANGELOG `[Unreleased]` section is the live record of work in
-> flight; git tags are the record of what shipped. On release, update
-> only the "Current shipped release" line above.
+> flight; git tags are the record of what shipped. `/release-prep`
+> updates this block on release.
 
-## Git Workflow
+## CI, Registry, and Releases
 
-- Work on `dev` branch for all changes.
-- Push to `dev` freely — builds `:dev` images.
-- When ready to release:
-  - Create PR `dev` → `main` on GitHub.
-  - Merge after CI passes.
-  - Tag release from `main` via the GitHub Releases UI.
-- Never push directly to `main`.
-- Branch protection on `main` requires PR + green build, blocks
-  force-push and deletion.
-- Do NOT add `Co-authored-by` to commits.
+Branching, PR flow, and the release rules are in the snippets above; the
+project-specific facts are:
 
-## Release Process
-
-- Push to `dev` — GitHub Actions builds and pushes `:dev` and
-  `:sha-<short>` images to GHCR.
-- Push to `main` (via PR from `dev`) — GitHub Actions builds and pushes
-  `:latest` and `:sha-<short>` images.
-- When the build is stable and ready to ship:
-  1. GitHub → Releases → Draft new release.
-  2. Create a new tag in `vX.Y.Z` format.
-  3. Publish the release.
-  4. GitHub Actions builds and pushes `:latest`, `:X.Y.Z`, and `:X` to
-     GHCR (`ghcr.io/crzykidd/docker-api-notifier`). Docker Hub is frozen
-     at v0.4.2.
+- **CI** (`.github/workflows/ci.yml`, push to `dev`/`main` only): `Lint`
+  (ruff 0.15.17, rules in `ruff.toml`), `Config validation` (every YAML/JSON
+  parses, and every interpreter YAML passes `interpreter_loader`), and
+  `Compose validation`. No migration check (no database) and no test job
+  (no tests yet). CodeQL runs as GitHub's default code-scanning setup.
+- **Required checks on `main`** (ruleset "Require PR for Main"): `build`
+  (image build, `docker-publish.yml`) plus `Lint`, `Config validation`,
+  `Compose validation`, and CodeQL — see `standards.md` for whether the
+  ruleset has been updated to require all of them yet.
+- **GHCR is the only registry** (`ghcr.io/crzykidd/docker-api-notifier`,
+  via `.github/workflows/docker-publish.yml`). Docker Hub is frozen at
+  v0.4.2. Push to `dev` builds `:dev` and `:sha-<short>`; push to `main`
+  builds `:latest` and `:sha-<short>`; a published release builds `:latest`,
+  `:X.Y.Z`, and `:X`. `retention.yml` prunes old GHCR versions (30 `sha-*`,
+  15 semver; `:latest`/`:dev`/`:X` never).
+- **The version lives in the bare-semver `VERSION` file** at the repo root.
+  `main.py` logs it at startup; `docker-publish.yml` fails a release whose
+  tag (minus `v`) != `VERSION`.
+- **To ship:** `/release-prep <version>` on `dev` (bumps `VERSION`, rolls
+  CHANGELOG, syncs docs, opens the PR) → human merges the PR and waits for
+  CI and the `:latest` build → `/release-cut <version>` (tags `v<version>`,
+  publishes the release). Commands live in `.claude/commands/`.
 
 ## Changelog Process
 
@@ -108,7 +242,9 @@ features remains STD v0.6.0+.
 - Add entries to `[Unreleased]` section as features are built.
 - User-facing language only — describe what changed for the operator.
 - Categories: Added, Changed, Fixed, Security, Deprecated, Removed.
-- On release: move `[Unreleased]` to a new version section dated today.
+- On release, `/release-prep` moves `[Unreleased]` to a new version
+  section dated today and, on a new minor/major, archives closed minor
+  series to `docs/CHANGELOG-<minor>.x.md` (summarize-on-archive).
 - GitHub release body = that version's CHANGELOG section (single source
   of truth).
 
@@ -182,7 +318,3 @@ auth and wire format.
 When adding a new notifier: copy `notifiers/_template.py`, replace
 the placeholders, wire it into `main.py`'s `NOTIFIER_TRIGGERS` and
 dispatch, document env vars and labels in `README.md`.
-
-## Git Rules
-
-- Do NOT add `Co-authored-by` lines to commit messages.

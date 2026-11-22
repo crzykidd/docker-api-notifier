@@ -1,7 +1,8 @@
 import os
-import requests
-import urllib.parse
 from datetime import datetime
+
+import requests
+
 from logging_setup import get_logger
 from retry import with_retry
 

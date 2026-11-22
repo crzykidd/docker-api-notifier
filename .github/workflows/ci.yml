@@ -1,0 +1,98 @@
+name: CI
+
+# Required checks for code-checkin-and-pr @ v1.2.0. Job `name:`s are the
+# required status-check contexts on the main ruleset — don't rename them.
+#
+# Push-only (no pull_request). Every dev push gets full CI feedback, and the
+# dev→main PR's required checks are satisfied by the head commit's push run
+# (the ruleset is non-strict). Triggering on both push AND pull_request makes
+# duplicate same-named check runs that can leave required checks stuck at
+# "Expected — Waiting for status to be reported" (seen in STD).
+#
+# Not applicable here: migration check (no database) and test suite (no tests
+# yet — exempt until a suite is added).
+
+on:
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      # Pinned so CI matches local runs (`uvx ruff@0.15.17 check .`). Bump
+      # deliberately. Rules are selected in ruff.toml.
+      - run: pip install ruff==0.15.17
+      - run: ruff check .
+
+  config-validate:
+    name: Config validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      # /release-prep runs this exact script (extracted from this file), so
+      # keep it as the last step of this job.
+      - name: Validate config files and interpreters
+        run: |
+          python3 << 'EOF'
+          import glob, json, logging, sys
+          import yaml
+
+          errors = []
+
+          # 1. Every checked-in YAML/JSON file parses.
+          yaml_files = (
+              ['docker-compose.yml']
+              + sorted(glob.glob('.github/workflows/*.yml'))
+              + sorted(glob.glob('interpreters/builtin/*.yml'))
+              + sorted(glob.glob('docs/community-interpreters/*.yml'))
+          )
+          for f in yaml_files:
+              try: yaml.safe_load(open(f).read())
+              except Exception as e: errors.append(f'{f}: {e}')
+          json_files = ['.claude/settings.json']
+          for f in json_files:
+              try: json.load(open(f))
+              except Exception as e: errors.append(f'{f}: {e}')
+
+          # 2. Every interpreter YAML passes the real loader's validation.
+          # Skip logging_setup's /config/notifier.log handler (not writable
+          # here); loader warnings go to stderr instead.
+          import logging_setup
+          logging_setup._configured = True
+          logging.basicConfig(level=logging.WARNING)
+          import interpreter_loader
+          for d in ['interpreters/builtin', 'docs/community-interpreters']:
+              files = sorted(glob.glob(f'{d}/*.yml'))
+              r = interpreter_loader.load_interpreters(builtin_dir=d, user_dir='/nonexistent')
+              loaded = {i.source_path for i in r.interpreters}
+              for f in files:
+                  if not any(p.endswith(f) for p in loaded):
+                      errors.append(f'{f}: rejected by interpreter_loader (see warning above)')
+
+          if errors:
+              for e in errors: print(f'FAIL: {e}', file=sys.stderr)
+              sys.exit(1)
+          print(f'All config files valid ({len(yaml_files) + len(json_files)} parsed; interpreters loaded)')
+          EOF
+
+  compose-validate:
+    name: Compose validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # docker-compose.yml interpolates ${DNS_SERVER_URL} etc.; unset vars
+      # only warn, so no .env is needed.
+      - run: docker compose config --quiet

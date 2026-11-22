@@ -343,10 +343,17 @@ Images are published to `ghcr.io/crzykidd/docker-api-notifier`. Docker Hub
 - `:sha-<short>` is published for every push for exact pinning.
 - Semver-tagged images (`:0.4.2`, `:0`) are published from GitHub Releases.
 
-Branch protection: PRs into `main` must pass the build check; force-push
-and branch deletion are blocked. Work happens on `dev`, opens a PR to
-`main`, and merges only when CI is green. Release tags are cut from the
-GitHub Releases UI on `main`.
+The running version is logged at startup
+(`Starting Docker API Notifier version X.Y.Z on host: ...`) and lives in
+the repo's `VERSION` file.
+
+Branch protection: PRs into `main` must pass CI (lint, config and
+interpreter validation, compose validation, image build, CodeQL);
+force-push and branch deletion are blocked. Work happens on `dev`, opens
+a PR to `main`, and merges only when CI is green. Releases are tagged
+`vX.Y.Z` from `main`; release notes are the matching `CHANGELOG.md`
+section. Old `:sha-*` and semver images are pruned from GHCR (newest 30
+and 15 kept); `:latest`, `:dev`, and `:X` are never pruned.
 
 ---
 
