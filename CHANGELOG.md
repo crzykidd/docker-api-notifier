@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-11-21
+
+### Added
+- Images are now published to GitHub Container Registry at
+  `ghcr.io/crzykidd/docker-api-notifier` (`:latest`, `:0.4.2`, `:0`,
+  plus `:dev` and `:sha-<short>` builds). Switch your compose `image:`
+  line to `ghcr.io/crzykidd/docker-api-notifier:latest`. Env vars,
+  labels, and volumes are unchanged.
+
+### Deprecated
+- **Docker Hub (`crzykidd/docker-api-notifier`) is deprecated; v0.4.2
+  is its final release.** The Docker Hub image logs a "this image has
+  moved" notice at startup pointing at the GHCR image. It will get no
+  further updates — later releases ship to GHCR only. The GHCR image
+  does not log the notice.
+
 ## [0.4.1] — 2026-05-29
 
 ### Fixed
@@ -186,7 +202,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.1
 [0.4.0]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.4.0
 [0.3.0]: https://github.com/crzykidd/docker-api-notifier/releases/tag/v0.3.0
