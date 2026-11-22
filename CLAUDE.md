@@ -62,8 +62,7 @@ commit as the code**. This is not optional and not deferrable:
 
 Current shipped release: **v0.4.2** (latest tag on `main`).
 
-Nothing currently in flight (`[Unreleased]` in `CHANGELOG.md` is
-empty). v0.4.2 is the registry-move release: images now publish to
+Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.4.2 is the registry-move release: images now publish to
 GHCR (`ghcr.io/crzykidd/docker-api-notifier`) and v0.4.2 is the final
 Docker Hub release (its image logs a "moved" notice). No STD wire
 contract change — the paired STD release for the capture/interpreter
@@ -91,7 +90,7 @@ features remains STD v0.6.0+.
 ## Release Process
 
 - Push to `dev` — GitHub Actions builds and pushes `:dev` and
-  `:sha-<short>` images to GHCR (and, for v0.4.2 only, Docker Hub).
+  `:sha-<short>` images to GHCR.
 - Push to `main` (via PR from `dev`) — GitHub Actions builds and pushes
   `:latest` and `:sha-<short>` images.
 - When the build is stable and ready to ship:
@@ -99,8 +98,8 @@ features remains STD v0.6.0+.
   2. Create a new tag in `vX.Y.Z` format.
   3. Publish the release.
   4. GitHub Actions builds and pushes `:latest`, `:X.Y.Z`, and `:X` to
-     GHCR (`ghcr.io/crzykidd/docker-api-notifier`). v0.4.2 also went to
-     Docker Hub as its final release.
+     GHCR (`ghcr.io/crzykidd/docker-api-notifier`). Docker Hub is frozen
+     at v0.4.2.
 
 ## Changelog Process
 

@@ -16,6 +16,7 @@
 | 0.6     | 2026-05-29 | STD dispatch and the periodic refresh loop are now gated on STD being configured. §3.2 event-flow notes the loop starts only when `STD_URL`/`STD_API_TOKEN` are set; DNS-only deployments log the disabled state once instead of per-event. |
 | 0.7     | 2026-05-29 | Release prep for v0.4.1. §5 "Current State" bumped to v0.4.1; no behavioral content change — rows 0.5/0.6 already documented the shipped fixes. |
 | 0.8     | 2026-11-21 | v0.4.2 — registry move. Images now publish to GHCR (`ghcr.io/crzykidd/docker-api-notifier`); v0.4.2 is the final Docker Hub release and its image logs a startup "moved" notice (gated on the `REGISTRY_NOTICE=dockerhub` build arg). §5 bumped to v0.4.2; §8 documents both registries. No wire-contract change. |
+| 0.9     | 2026-11-21 | Unreleased — Docker Hub publishing removed; GHCR is the only registry. §8 updated; the `REGISTRY_NOTICE` build arg and startup notice are gone. |
 
 ---
 
@@ -643,10 +644,9 @@ STD's `ExposureObservation` schema beyond basic structure.
 - All work happens on `dev`. PR `dev` → `main` when ready to release.
 - Branch protection: require PR + green build check, block force-push,
   block deletion.
-- Images publish to `ghcr.io/crzykidd/docker-api-notifier`. v0.4.2 is
-  the final Docker Hub (`crzykidd/docker-api-notifier`) release; that
-  build sets `REGISTRY_NOTICE=dockerhub` so it logs a "moved to GHCR"
-  notice at startup. Docker Hub publishing is removed after v0.4.2.
+- Images publish to `ghcr.io/crzykidd/docker-api-notifier` only. Docker
+  Hub (`crzykidd/docker-api-notifier`) is frozen at v0.4.2, its final
+  release (that image logged a "moved to GHCR" notice at startup).
 - Image tags follow `.github/workflows/docker-publish.yml`:
   - push to `dev` → `:dev` and `:sha-<short>`
   - push to `main` → `:latest` and `:sha-<short>`

@@ -5,13 +5,12 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 > [!IMPORTANT]
-> **The image has moved to GitHub Container Registry:
-> `ghcr.io/crzykidd/docker-api-notifier`.** v0.4.2 is the final release
-> published to Docker Hub (`crzykidd/docker-api-notifier`); that image
-> gets no further updates and logs a "moved" notice at startup. Change
-> your compose `image:` line to `ghcr.io/crzykidd/docker-api-notifier:latest`
-> (or pin a version, e.g. `:0.4.2`). Nothing else changes — same env
-> vars, labels, and volumes.
+> **Images are published to GitHub Container Registry:
+> `ghcr.io/crzykidd/docker-api-notifier`.** Docker Hub
+> (`crzykidd/docker-api-notifier`) is no longer updated — v0.4.2 was its
+> final release. If you still pull from Docker Hub, change your compose
+> `image:` line to `ghcr.io/crzykidd/docker-api-notifier:latest`. Env
+> vars, labels, and volumes are the same.
 
 A lightweight, event-driven Docker monitor that listens to the Docker socket
 on a host and fans out container events to multiple downstream notifiers.

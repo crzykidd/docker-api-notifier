@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- Docker Hub publishing. Images are published only to
+  `ghcr.io/crzykidd/docker-api-notifier`; `crzykidd/docker-api-notifier`
+  on Docker Hub stays frozen at v0.4.2 and gets no new tags (including
+  `:dev` and `:latest`). The "this image has moved" startup notice
+  existed only in the Docker Hub image and is gone with it.
+
 ## [0.4.2] — 2026-11-21
 
 ### Added

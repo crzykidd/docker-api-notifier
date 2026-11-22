@@ -242,25 +242,7 @@ def _run_interpreters(labels):
         return None
     return interpreter_loader.evaluate(INTERPRETER_LOAD_RESULT.interpreters, labels)
 
-GHCR_IMAGE = "ghcr.io/crzykidd/docker-api-notifier"
-
-
-def log_registry_notice():
-    # REGISTRY_NOTICE is set to "dockerhub" only in the Docker Hub image
-    # (a build arg in the publish workflow). The GHCR image never logs this.
-    if os.environ.get("REGISTRY_NOTICE", "").strip().lower() != "dockerhub":
-        return
-    logger.warning("=" * 72)
-    logger.warning("IMAGE HAS MOVED: docker-api-notifier is now published to")
-    logger.warning(f"  {GHCR_IMAGE}")
-    logger.warning("v0.4.2 is the final release on Docker Hub")
-    logger.warning("(crzykidd/docker-api-notifier). This image will get no further")
-    logger.warning(f"updates. Change your compose image: line to {GHCR_IMAGE}:latest")
-    logger.warning("=" * 72)
-
-
 def main():
-    log_registry_notice()
     client = docker.from_env()
     docker_host = get_host_name()
     logger.info(f"Starting Docker API Notifier on host: {docker_host}")
