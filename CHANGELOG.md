@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Sends each network's driver, IPv4, IPv6 and MAC address to Service Tracker
+  Dashboard 0.13.0+, so its Ports page handles macvlan/ipvlan and
+  host-network containers. Only sent when STD advertises `network_details`
+  in `/api/v1/meta` (older STD keeps working and gets just name/aliases);
+  opt out with `STD_SEND_NETWORK_DETAILS=false`. Values that Docker reports
+  but that don't validate are left out rather than risking the register.
+  `/healthz` gains `features_supported` (per STD feature, `null` until the
+  first check).
+- New label `dockernotifier.std.skip=true` stops reporting that container
+  to STD, even with `STD_REPORT_ALL_CONTAINERS` on. DNS is unaffected. It
+  doesn't remove an entry STD already has; delete that in STD.
+
+### Fixed
+- A `dockernotifier.std.*` label named like something the notifier sends
+  itself (`container_name`, `networks`, `image_name`, ...) no longer stops
+  that container from registering; the label is ignored with a warning.
+  `dockernotifier.std.timestamp` is ignored the same way.
+- `dockernotifier.std.host` no longer silently overrides the reported host
+  name; it is ignored with a warning pointing at `HOST_NAME_OVERRIDE`.
+- A mistyped health-check label (`internal.health=ture`) no longer turns
+  the check off: it logs a warning and is left out so STD keeps its
+  current setting. `on`/`off` are now accepted as well as
+  `true`/`false`/`1`/`0`/`yes`/`no`. An unparsable `sort.priority` now
+  logs a warning too.
+
 ## [0.5.1] — 2026-11-22
 
 ### Fixed

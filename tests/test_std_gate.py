@@ -187,3 +187,163 @@ def test_register_passes_timeout(http):
 def test_no_image_info_means_field_absent(http):
     _register()
     assert "image_info" not in _sent_payloads(http)[0]
+
+
+# --- network_details gate -------------------------------------------------
+
+NET_FULL = [{"name": "lan", "aliases": ["a"], "driver": "macvlan",
+             "ip_address": "192.168.1.50", "ipv6_address": "fd00::2",
+             "mac_address": "02:42:ac:11:00:02"}]
+NET_PLAIN = [{"name": "lan", "aliases": ["a"]}]
+
+# What a real STD <= API revision 5 answers for networks[0].driver: only
+# "networks" in unknown_keys, the real culprit in details[].loc.
+OLD_STD_400 = {
+    "error": "Invalid register payload",
+    "unknown_keys": ["networks"],
+    "details": [{"loc": ["networks", 0, "driver"], "type": "extra_forbidden",
+                 "msg": "Extra inputs are not permitted"}],
+}
+
+
+def test_per_feature_support_from_meta(http):
+    http.get.return_value = _meta(["register", "image_info", "network_details"], 6, "0.13.0")
+    assert std.feature_supported("network_details") is True
+    assert std.feature_supported("image_info") is True
+    assert std.std_status()["features_supported"] == {
+        "image_info": True, "network_details": True}
+    http.get.return_value = _meta(["register", "image_info"])
+    std.refresh_meta()
+    assert std.feature_supported("network_details") is False
+    assert std.image_info_supported() is True
+    with pytest.raises(ValueError):
+        std.feature_supported("nope")
+
+
+def test_features_supported_is_null_before_first_check(http):
+    assert std.std_status()["features_supported"] == {
+        "image_info": None, "network_details": None}
+
+
+def test_network_details_sent_when_advertised(http):
+    http.get.return_value = _meta(["register", "network_details"], 6, "0.13.0")
+    _register(networks=NET_FULL)
+    assert _sent_payloads(http)[0]["networks"] == NET_FULL
+
+
+def test_network_details_reduced_when_unsupported(http):
+    _register(networks=NET_FULL)  # default /meta: no network_details
+    assert _sent_payloads(http)[0]["networks"] == NET_PLAIN
+
+
+def test_network_details_unsupported_logged_once(http, caplog):
+    with caplog.at_level("INFO"):
+        for _ in range(3):
+            std.refresh_meta()
+    msgs = [r.message for r in caplog.records if "does not accept network_details" in r.message]
+    assert len(msgs) == 1 and "0.13.0+" in msgs[0] and "API revision 5" in msgs[0]
+
+
+def test_opt_out_env_reduces_networks(http, monkeypatch):
+    http.get.return_value = _meta(["register", "network_details"], 6)
+    monkeypatch.setenv("STD_SEND_NETWORK_DETAILS", "false")
+    _register(networks=NET_FULL)
+    assert _sent_payloads(http)[0]["networks"] == NET_PLAIN
+
+
+def test_400_old_std_body_retries_with_stripped_networks_keeping_image_info(http):
+    http.get.return_value = _meta(["register", "image_info", "network_details"], 6)
+    http.post.side_effect = [_resp(400, OLD_STD_400), _resp(200)]
+    _register(networks=NET_FULL, image_info=INFO)
+    first, second = _sent_payloads(http)
+    assert first["networks"] == NET_FULL
+    assert second["networks"] == NET_PLAIN          # never dropped, just reduced
+    assert second["image_info"] == INFO
+    assert std.std_status()["features_supported"]["network_details"] is False
+
+
+def test_400_unknown_keys_networks_alone_is_not_acted_on(http):
+    http.get.return_value = _meta(["register", "network_details"], 6)
+    http.post.side_effect = [_resp(400, {"unknown_keys": ["networks"], "details": []})]
+    _register(networks=NET_FULL)
+    assert http.post.call_count == 1
+
+
+def test_400_validator_error_on_new_std_also_blames_network_details(http):
+    http.get.return_value = _meta(["register", "network_details"], 6)
+    http.post.side_effect = [
+        _resp(400, {"unknown_keys": [],
+                    "details": [{"loc": ["networks", 1, "ip_address"],
+                                 "type": "value_error"}]}),
+        _resp(200),
+    ]
+    _register(networks=NET_FULL)
+    assert _sent_payloads(http)[1]["networks"] == NET_PLAIN
+
+
+def test_400_blaming_both_features_strips_both(http):
+    http.get.return_value = _meta(["register", "image_info", "network_details"], 6)
+    body = {"unknown_keys": ["image_info", "networks"],
+            "details": [{"loc": ["networks", 0, "mac_address"]}]}
+    http.post.side_effect = [_resp(400, body), _resp(200)]
+    _register(networks=NET_FULL, image_info=INFO)
+    second = _sent_payloads(http)[1]
+    assert "image_info" not in second and second["networks"] == NET_PLAIN
+
+
+def test_network_details_rejection_sticks_while_std_claims_support(http):
+    http.get.return_value = _meta(["register", "network_details"], 6)
+    http.post.side_effect = [
+        _resp(400, OLD_STD_400),
+        _resp(200, {}, {"X-STD-API-Revision": "6"}),
+        _resp(200, {}, {"X-STD-API-Revision": "6"}),
+    ]
+    _register(networks=NET_FULL)
+    _register(networks=NET_FULL)
+    assert _sent_payloads(http)[2]["networks"] == NET_PLAIN
+
+
+def test_revision_header_change_rechecks_for_network_details(http):
+    http.get.return_value = _meta(["register"], 5)
+    _register(networks=NET_FULL)  # reduced; response header says revision 5
+    http.post.return_value = _resp(200, {}, {"X-STD-API-Revision": "6"})
+    _register(networks=NET_FULL)  # reduced again, but header 6 triggers recheck
+    http.get.return_value = _meta(["register", "network_details"], 6)
+    _register(networks=NET_FULL)
+    assert _sent_payloads(http)[1]["networks"] == NET_PLAIN
+    # recheck happened on the 2nd response; the 3rd register sees the new answer
+    assert std.feature_supported("network_details") is True
+
+
+# --- label coercion in _to_canonical --------------------------------------
+
+@pytest.mark.parametrize("raw,expected", [
+    ("true", True), ("1", True), ("YES", True), ("on", True),
+    ("false", False), ("0", False), ("No", False), ("off", False),
+])
+def test_bool_label_values(raw, expected):
+    out = std._to_canonical({"container_name": "web", "docker_host": "h",
+                             "internal.health": raw})
+    assert out["internal_health_check_enabled"] is expected
+
+
+def test_bool_typo_leaves_key_out_and_warns(caplog):
+    with caplog.at_level("WARNING"):
+        out = std._to_canonical({"container_name": "web", "docker_host": "h",
+                                 "external.health": "ture"})
+    assert "external_health_check_enabled" not in out
+    assert any("web" in r.message and "external.health" in r.message
+               for r in caplog.records)
+
+
+def test_bad_int_dropped_with_warning(caplog):
+    with caplog.at_level("WARNING"):
+        out = std._to_canonical({"container_name": "web", "docker_host": "h",
+                                 "sort.priority": "high"})
+    assert "sort_priority" not in out
+    assert any("sort_priority" in r.message for r in caplog.records)
+
+
+def test_skip_key_is_not_in_payload():
+    out = std._to_canonical({"container_name": "web", "docker_host": "h", "skip": "true"})
+    assert "skip" not in out

@@ -311,6 +311,12 @@ The notifier must keep older STD versions working:
   response header changes or STD 400s the field. Opt out with
   `STD_SEND_IMAGE_INFO=false`. The DNS notifier never receives it.
 
+- `networks[].driver` / `ip_address` / `ipv6_address` / `mac_address`
+  require STD v0.13.0+ (feature `network_details`). Same mechanism as
+  `image_info`; opt out with `STD_SEND_NETWORK_DETAILS=false`. The gate
+  and the 400-retry live in the STD notifier. A 400 is attributed from
+  `details[].loc` only, never from `"networks"` in `unknown_keys`.
+
 ### Version pairing history (informational, not the rule)
 
 - Notifier v0.3.0 switched to canonical keys + `/api/v1/register`;
@@ -320,6 +326,8 @@ The notifier must keep older STD versions working:
 - Notifier v0.5.0 added `image_info`, gated on STD's `/api/v1/meta`;
   pairs with STD v0.12.0+ (older STD keeps working, it just never gets
   the field).
+- Notifier v0.6.0 added `networks[]` details, gated on `network_details`;
+  pairs with STD v0.13.0+ (older STD gets name/aliases only).
 
 ## Notifier Module Conventions
 

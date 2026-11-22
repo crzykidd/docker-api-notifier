@@ -215,6 +215,7 @@ def snapshot():
                     "api_revision": std_state.get("api_revision"),
                     "image_info_supported": (
                         std_state.get("image_info_supported") if checked else None),
+                    "features_supported": std_state["features_supported"],
                     **_notifiers.get("service_tracker_dashboard", _fresh_notifier()),
                 },
             },

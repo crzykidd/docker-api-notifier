@@ -7,8 +7,10 @@ import docker
 import health
 import image_info
 import interpreter_loader
+import network_info
 from logging_setup import get_logger
 from notifiers import service_tracker_dashboard, technitium_dns
+from notifiers.service_tracker_dashboard import parse_bool
 
 logger = get_logger("main")
 
@@ -127,13 +129,9 @@ def get_host_name():
         return os.uname()[1]
 
 
-def _extract_networks(container_attrs):
-    network_settings = container_attrs.get("NetworkSettings") or {}
-    networks_raw = network_settings.get("Networks") or {}
-    return [
-        {"name": name, "aliases": (data.get("Aliases") or []) if isinstance(data, dict) else []}
-        for name, data in networks_raw.items()
-    ]
+def _extract_networks(container_attrs, client=None):
+    """Networks list; pass a Docker `client` to include per-network details."""
+    return network_info.collect(container_attrs, client)
 
 
 def _extract_exposed_ports(container_attrs):
@@ -187,6 +185,11 @@ def handle_container_event(container, docker_host, action):
         and (std_via_label or std_via_env)
         and action in NOTIFIER_TRIGGERS["service-tracker-dashboard"]
     )
+    # `dockernotifier.std.skip=true`: never report this container to STD
+    # (DNS is unaffected), even with STD_REPORT_ALL_CONTAINERS.
+    if std_should_fire and _std_skip(container.name, labels):
+        logger.debug(f"STD notifier skipping {container.name} (dockernotifier.std.skip)")
+        std_should_fire = False
     dns_should_fire = (
         "dns" in notifier_list and action in NOTIFIER_TRIGGERS["dns"]
     )
@@ -203,7 +206,10 @@ def handle_container_event(container, docker_host, action):
         "stack_name": labels.get("com.docker.compose.project"),
         "started_at": container.attrs["State"]["StartedAt"],
         "action": action,
-        "networks": _extract_networks(container.attrs),
+        # Per-network details (driver lookups) only when STD will use them.
+        "networks": _extract_networks(
+            container.attrs, container.client if std_should_fire else None
+        ),
         "exposed_ports": _extract_exposed_ports(container.attrs),
         "published_ports": _extract_published_ports(container.attrs),
     }
@@ -238,19 +244,63 @@ def handle_container_event(container, docker_host, action):
                 f"STD_REPORT_ALL_CONTAINERS (no opt-in label)"
             )
         logger.info(f"STD notifier triggered for {container.name} on {action}")
-        std_extras = {
-            key.replace("dockernotifier.std.", ""): value
-            for key, value in labels.items()
-            if key.startswith("dockernotifier.std.")
-        }
+        std_extras = _std_label_extras(container.name, labels, base_kwargs)
         std_extras["exposure_observations"] = _run_interpreters(labels)
-        # A `dockernotifier.std.image_info` label must not leak into the payload.
-        std_extras.pop("image_info", None)
         if STD_SEND_IMAGE_INFO and service_tracker_dashboard.image_info_supported():
             info = image_info.lookup(container)
             if info:
                 std_extras["image_info"] = info
         service_tracker_dashboard.register(**base_kwargs, **std_extras)
+
+
+# Keys a `dockernotifier.std.<key>` label may not set, on top of the base
+# kwargs: they would collide with what the notifier itself sends.
+_RESERVED_STD_LABEL_KEYS = frozenset({
+    "host", "image_info", "exposure_observations", "timestamp",
+})
+_STD_LABEL_PREFIX = "dockernotifier.std."
+
+
+def _std_skip(container_name, labels):
+    """True when `dockernotifier.std.skip` is set to a true value."""
+    raw = labels.get(_STD_LABEL_PREFIX + "skip")
+    if raw is None:
+        return False
+    parsed = parse_bool(raw)
+    if parsed is None:
+        logger.warning(
+            f"Container '{container_name}': label '{_STD_LABEL_PREFIX}skip'='{raw}' "
+            f"is not a boolean (use true/false); not skipping"
+        )
+        return False
+    return parsed
+
+
+def _std_label_extras(container_name, labels, base_kwargs):
+    """The `dockernotifier.std.*` labels as kwargs for the STD notifier.
+
+    Labels whose key collides with a base kwarg or another reserved key are
+    dropped with a warning (a collision would raise TypeError in
+    `register(**base_kwargs, **extras)` and the container would never
+    register). `skip` is consumed by `_std_skip` and never forwarded.
+    """
+    reserved = set(base_kwargs) | _RESERVED_STD_LABEL_KEYS
+    extras = {}
+    for label, value in labels.items():
+        if not label.startswith(_STD_LABEL_PREFIX):
+            continue
+        key = label[len(_STD_LABEL_PREFIX):]
+        if key == "skip":
+            continue
+        if key in reserved:
+            hint = " (set the host name with HOST_NAME_OVERRIDE)" if key == "host" else ""
+            logger.warning(
+                f"Container '{container_name}': ignoring label '{label}' — "
+                f"'{key}' is set by the notifier{hint}"
+            )
+            continue
+        extras[key] = value
+    return extras
 
 
 def _run_interpreters(labels):

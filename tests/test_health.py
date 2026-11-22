@@ -63,6 +63,7 @@ def test_snapshot_shape_and_values(docker_ok):
     assert s["configured"] is True  # conftest sets STD_URL/STD_API_TOKEN
     assert s["std_version"] is None and s["api_revision"] is None
     assert s["image_info_supported"] is None  # no /meta check yet
+    assert s["features_supported"] == {"image_info": None, "network_details": None}
     json.dumps(body)
 
 
@@ -72,6 +73,7 @@ def test_std_fields_come_from_gate_state(docker_ok):
                           image_info_supported=True, last_check=1000.0)
     s = health.snapshot()[0]["notifiers"]["service_tracker_dashboard"]
     assert (s["std_version"], s["api_revision"], s["image_info_supported"]) == ("0.12.0", 5, True)
+    assert s["features_supported"] == {"image_info": True, "network_details": False}
 
 
 def test_dns_configured_reflects_env(docker_ok, monkeypatch):

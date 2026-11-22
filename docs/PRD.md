@@ -22,6 +22,7 @@
 | 0.12    | 2026-11-21 | Unreleased (targets v0.5.0) — `image_info` (running image digests and OCI labels) sent to STD v0.12.0+, gated on STD's `/api/v1/meta`; opt-out `STD_SEND_IMAGE_INFO`. New §9.4 documents the wire contract, the capability gate, and the 0.5.0 ↔ STD 0.12.0+ pairing. Retry policy changed (§5.1, §5.2 N1): 4xx is no longer retried; every outbound request has a 10 s timeout. A `pytest` suite and a CI `Test` job now exist (§10 test-coverage question resolved). |
 | 0.13    | 2026-11-21 | Unreleased (targets v0.5.0) — `/healthz` health endpoint. §3 diagram and §3.1 add `health.py` and its HTTP daemon thread; §3.3 step 4 says notifiers record their final outcome for it; §4 documents `HEALTH_PORT`; new §4.2 documents the endpoint, 200/503 semantics (downstream outages never make it unhealthy) and the image `HEALTHCHECK`. No wire-contract change. |
 | 0.14    | 2026-11-21 | Release prep for v0.5.0. §5 bumped to v0.5.0 (ToC link fixed). Ships rows 0.12–0.13: `image_info` to STD v0.12.0+ gated on `/api/v1/meta`, the `/healthz` endpoint and image `HEALTHCHECK`, 4xx no longer retried, 10 s request timeouts, the `pytest` suite, and a fix that stops the DNS token being written to the log. Adds the `image_info` wire key (STD v0.12.0+, capability-gated). |
+| 0.16    | 2026-11-22 | Unreleased (targets v0.6.0) — `networks[]` items gain optional `driver` / `ip_address` / `ipv6_address` / `mac_address` (STD v0.13.0+), gated per feature on `/api/v1/meta` (`network_details`); opt-out `STD_SEND_NETWORK_DETAILS`. §3.3 `networks` row, §7 captured fields and §9.4 (now a per-feature gate) updated. `dockernotifier.std.*` labels: reserved keys dropped with a warning (`host` points at `HOST_NAME_OVERRIDE`), unparsable bools left out instead of sent as false, new `dockernotifier.std.skip`. |
 | 0.15    | 2026-11-22 | Release prep for v0.5.1. §5 bumped to v0.5.1. Docs-only release: the README's license statement corrected to GPL-3.0 (matching `LICENSE`). No behavior or wire-contract change. |
 
 ---
@@ -240,7 +241,7 @@ arguments guaranteed present:
 | `stack_name` | Optional[str] | `com.docker.compose.project` label or `None` |
 | `started_at` | str | ISO timestamp from container state |
 | `action` | str | The action that triggered this call (e.g. "start", "boot", "refresh") |
-| `networks` | list[dict] | One entry per Docker network the container is on: `{"name": str, "aliases": [str, ...]}`. Empty list if the container is on no networks. Added in v0.4.0. |
+| `networks` | list[dict] | One entry per Docker network the container is on: `{"name": str, "aliases": [str, ...]}`. Empty list if the container is on no networks. Added in v0.4.0. Since v0.6.0 `collect()` (`network_info.py`) also adds optional `driver`, `ip_address`, `ipv6_address`, `mac_address` when the STD notifier is going to fire; the STD notifier reduces items back to `{name, aliases}` unless STD advertises `network_details` (§9.4). DNS ignores `networks`. |
 | `exposed_ports` | list[str] | Container's `ExposedPorts` config as a list of `"<port>/<proto>"` strings (e.g. `"5173/tcp"`). Empty list if none. Added in v0.4.0. |
 | `published_ports` | list[dict] | One entry per `(container_port, host_port)` mapping: `{"container_port": int, "protocol": str, "host_ip": str, "host_port": int}`. Empty list if no published ports. Added in v0.4.0. |
 
@@ -583,8 +584,9 @@ receives them through `**kwargs` and ignores them. Storing them in
 available for any future notifier (e.g. a Traefik-config emitter)
 without rerunning the Docker API call.
 
-Out of scope: per-network detail beyond name and aliases (no IPs,
-gateways, MAC addresses); per-host filtering of which networks to
+Since v0.6.0 each item may also carry `driver`, `ip_address`,
+`ipv6_address` and `mac_address` (STD v0.13.0+; see §9.5). Still out of
+scope: gateways and other per-network detail;  per-host filtering of which networks to
 report; sending the data anywhere besides STD.
 
 ### 7.4 YAML interpreter mechanism
@@ -791,6 +793,35 @@ Opt-out: `STD_SEND_IMAGE_INFO=false`. DNS never receives `image_info`.
 
 **Pairing:** notifier v0.5.0 ↔ STD v0.12.0+. STD ships first (it has);
 older STD keeps working because the field is simply not sent.
+
+The gate is generalized per feature (`feature_supported(name)`; `image_info_supported()`
+is a thin wrapper) and rejections are tracked per feature and API revision.
+
+### 9.5 Network details (`networks[]` extras) — notifier v0.6.0 / STD v0.13.0+
+
+STD 0.13.0 accepts four optional keys on each `networks` item and
+advertises the feature `network_details` in `/api/v1/meta`. The wire
+shape is `{"name", "aliases", "driver", "ip_address", "ipv6_address",
+"mac_address"}`; STD forbids any other key, and answers 400 for the whole
+register on an invalid value, so the notifier validates locally: IPs via
+`ipaddress` (right family), MAC `xx:xx:xx:xx:xx:xx`, driver at most 32
+characters; empty or invalid values are left out of the item.
+
+- IP/IPv6/MAC come from `NetworkSettings.Networks[name]`
+  (`IPAddress`, `GlobalIPv6Address`, `MacAddress`); the driver from
+  `container.client.networks.get(NetworkID).attrs["Driver"]`, cached per
+  `NetworkID` (bounded). A failed lookup omits only the driver.
+- Details are collected only for containers STD will receive (DNS-only
+  hosts make no extra Docker calls). The gate lives in the STD notifier:
+  `register` reduces items to `{name, aliases}` when `network_details` is
+  unsupported or `STD_SEND_NETWORK_DETAILS=false`.
+- A 400 is attributed to `network_details` only from `details[].loc`
+  (`["networks", i, <one of the four keys>, ...]`). An older STD lists just
+  `"networks"` in `unknown_keys`; that is never acted on. The retry strips
+  the four keys from every item, keeping `name` and `aliases`.
+- `/healthz` reports `features_supported` per gated feature.
+
+**Pairing:** notifier v0.6.0 ↔ STD v0.13.0+; STD shipped first.
 
 **HTTP behavior (both notifiers).** Retries cover connection errors,
 timeouts and 5xx only; a 4xx raises immediately. All outbound requests

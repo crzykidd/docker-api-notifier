@@ -23,11 +23,13 @@ def _fresh_state(monkeypatch):
     health.reset()
     image_info._cache.clear()
     image_info._warned.clear()
+    import network_info
+    network_info._driver_cache.clear()
     with std._state_lock:
         std._state.update(
             std_version=None, api_revision=None, features=None,
-            image_info_supported=False, last_check=None,
-            last_check_ok=False, rejected_revision=None,
+            image_info_supported=False, network_details_supported=False,
+            last_check=None, last_check_ok=False, rejected={},
         )
         std._flags.clear()
     monkeypatch.setattr(std.post_with_retry.retry, "sleep", lambda s: None)
