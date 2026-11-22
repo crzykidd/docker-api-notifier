@@ -218,9 +218,10 @@ project-specific facts are:
   `Compose validation`. No migration check (no database) and no test job
   (no tests yet). CodeQL runs as GitHub's default code-scanning setup.
 - **Required checks on `main`** (ruleset "Require PR for Main"): `build`
-  (image build, `docker-publish.yml`) plus `Lint`, `Config validation`,
-  `Compose validation`, and CodeQL — see `standards.md` for whether the
-  ruleset has been updated to require all of them yet.
+  (image build, `docker-publish.yml`), `Lint`, `Config validation`,
+  `Compose validation`, plus a CodeQL `code_scanning` rule. CodeQL must
+  complete, but its findings don't block merge (thresholds `none`) —
+  triage them in the repo's Security → Code scanning view.
 - **GHCR is the only registry** (`ghcr.io/crzykidd/docker-api-notifier`,
   via `.github/workflows/docker-publish.yml`). Docker Hub is frozen at
   v0.4.2. Push to `dev` builds `:dev` and `:sha-<short>`; push to `main`

@@ -5,6 +5,17 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
+## 2026-11-21 — CodeQL required to run, not to be clean
+
+The `main` ruleset's `code_scanning` rule uses `alerts_threshold: none`
+and `security_alerts_threshold: none`, so a PR needs a completed CodeQL
+analysis but isn't blocked by its findings. That is what
+`code-checkin-and-pr` @ 1.2.0 specifies ("the gate is that the scan
+ran"). STD's ruleset blocks on errors / high-or-higher instead; tightening
+here later is a one-field change if findings start getting ignored.
+
+---
+
 ## 2026-11-21 — Standards adoption: what was adapted, and why
 
 Adopted `handoff-prompt-workflow` @ 2.0.0, `code-checkin-and-pr` @ 1.2.0,
