@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- A `/healthz` HTTP endpoint (port 8080, set `HEALTH_PORT=0` to disable)
+  reports the version, uptime, the Docker connection, and each notifier's
+  last success/error; the image now has a Docker `HEALTHCHECK`. A STD or
+  DNS outage doesn't mark the notifier unhealthy.
 - Sends the running image (digests and OCI labels) to Service Tracker
   Dashboard 0.12.0+ for its image update check; only when STD advertises
   support; opt out with `STD_SEND_IMAGE_INFO=false`. Logs STD's API

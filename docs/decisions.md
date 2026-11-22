@@ -5,6 +5,34 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
+## 2026-11-21 — /healthz: downstream outages never make it unhealthy
+
+- **200 vs 503 depends only on the notifier itself**: the Docker daemon
+  answers a `ping()` (cached ~15 s so probes don't hammer the socket) and
+  the event loop, once started, hasn't stopped. A STD or Technitium outage
+  shows only in that notifier's `last_error*` / `error_count` and keeps
+  HTTP 200; otherwise an autoheal setup would restart-loop the notifier
+  over someone else's outage.
+- **Stdlib `ThreadingHTTPServer` in a daemon thread**, started in `main()`
+  before the boot scan; no new dependency. A bind failure logs an error and
+  the notifier runs without the endpoint (health must never stop
+  notifying). `HEALTH_PORT=0` disables it and the image's `HEALTHCHECK`
+  (`healthcheck.py`) then exits 0.
+- **Separate Docker client for health pings**, so a probe never shares the
+  blocking event-stream connection.
+- **Error strings are scrubbed, not just truncated.** `requests` exceptions
+  embed the full URL and the DNS token travels in its query string, so
+  `health.sanitize_error()` cuts query strings and userinfo, masks
+  `token=`-style values and any configured secret, then truncates to 200
+  chars. (The existing log lines for DNS failures still print the raw
+  exception, token included; left as is, out of scope here.)
+- **Notifier outcomes are recorded inside each `register()`** (final result
+  after retries), keeping the public `register(**kwargs)` contract
+  unchanged. `health.py` imports the STD module lazily in `snapshot()`
+  because the notifiers import `health` (avoids a cycle).
+
+---
+
 ## 2026-11-21 — image_info: gate on /meta, resolve by id, retry only 5xx
 
 - **Gate on STD's `/api/v1/meta`, not a version guess.** STD's schema is

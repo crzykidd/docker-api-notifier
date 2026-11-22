@@ -20,6 +20,7 @@
 | 0.10    | 2026-11-21 | Unreleased — adopts the `code-checkin-and-pr`, `handoff-prompt-workflow`, and `release-prep-and-cut` standards (see `standards.md`). §8 documents the `VERSION` file, CI checks, GHCR retention, and the `/release-prep` → `/release-cut` flow. §5.3 lint item resolved. Version logged at startup. |
 | 0.11    | 2026-11-21 | Release prep for v0.4.3 (first release under the adopted standards). §5 bumped to v0.4.3. Ships rows 0.9–0.10: GHCR-only publishing, the `VERSION` file + startup version log, and the new CI/CodeQL/retention. No wire-contract change. |
 | 0.12    | 2026-11-21 | Unreleased (targets v0.5.0) — `image_info` (running image digests and OCI labels) sent to STD v0.12.0+, gated on STD's `/api/v1/meta`; opt-out `STD_SEND_IMAGE_INFO`. New §9.4 documents the wire contract, the capability gate, and the 0.5.0 ↔ STD 0.12.0+ pairing. Retry policy changed (§5.1, §5.2 N1): 4xx is no longer retried; every outbound request has a 10 s timeout. A `pytest` suite and a CI `Test` job now exist (§10 test-coverage question resolved). |
+| 0.13    | 2026-11-21 | Unreleased (targets v0.5.0) — `/healthz` health endpoint. §3 diagram and §3.1 add `health.py` and its HTTP daemon thread; §3.3 step 4 says notifiers record their final outcome for it; §4 documents `HEALTH_PORT`; new §4.2 documents the endpoint, 200/503 semantics (downstream outages never make it unhealthy) and the image `HEALTHCHECK`. No wire-contract change. |
 
 ---
 
@@ -132,6 +133,9 @@ startup (see §1.3 and §11).
 │  │   ├─ event subscription│    │
 │  │   └─ periodic re-scan  │    │
 │  │                        │    │
+│  │   health.py (/healthz) │    │
+│  │   └─ HTTP daemon thread│    │
+│  │                        │    │
 │  │   interpreter_loader   │    │
 │  │   ├─ builtin YAMLs     │    │
 │  │   └─ user YAMLs (mount)│    │
@@ -150,7 +154,13 @@ startup (see §1.3 and §11).
 ### 3.1 Module responsibilities
 
 - **`main.py`** — Docker client setup, event subscription, label parsing,
-  per-notifier dispatch, periodic re-scan thread.
+  per-notifier dispatch, periodic re-scan thread. Starts the health
+  endpoint before the boot scan.
+- **`health.py`** — lock-guarded health state (event/refresh counters,
+  per-notifier last success/error), the `/healthz` JSON snapshot, and a
+  stdlib `ThreadingHTTPServer` in a daemon thread (`HEALTH_PORT`, default
+  8080, `0` disables). `main.py` and each notifier's `register()` call its
+  recorders. `healthcheck.py` is the Docker `HEALTHCHECK` probe.
 - **`notifiers/<target>.py`** — one module per downstream system. Each
   exposes a `register(...)` function and owns its own retry policy,
   authentication, and payload shape.
@@ -255,6 +265,8 @@ A `register()` implementation must:
 3. Send the request, using `@with_retry` on the network call.
 4. Catch `requests.RequestException` after retries; log and return.
    Do not let transient failures kill the event loop in `main.py`.
+   Record the final outcome for `/healthz` (`health.record_success(name)`
+   / `health.record_error(name, exc)`); see `notifiers/_template.py`.
 5. Not catch broader exceptions — programming errors should propagate
    to `main.py`'s outer try/except for visibility.
 
@@ -322,6 +334,26 @@ reloads on every dispatch — useful when iterating on a YAML, not
 intended for production.
 
 See §11 for the YAML format and emission semantics.
+
+### 4.2 Health endpoint (v0.5.0+)
+
+`HEALTH_PORT` (default `8080`; `0` disables; non-integer falls back to
+the default with a warning) controls the `/healthz` endpoint served by
+`health.py`. `GET /healthz` returns JSON: version, start time and uptime,
+host, Docker connection (cached `ping()`, <= 15 s), event/refresh-loop
+activity, loaded interpreters, and per-notifier `configured` /
+last-success / last-error / counts (the STD block also carries the cached
+`/api/v1/meta` gate state). HTTP 200 / `"ok"` when Docker answers and the
+event loop runs; 503 / `"unhealthy"` when Docker is unreachable.
+**Downstream (STD, Technitium) failures never make it unhealthy**: they
+appear in the per-notifier fields only, so an auto-restart setup cannot
+restart-loop the notifier over another system's outage. Error strings are
+truncated to 200 chars and credential-scrubbed (the DNS token rides in a
+query string that `requests` echoes in exceptions). Unknown paths get a
+JSON 404; a bind failure logs an error and the notifier runs without the
+endpoint. The image declares `EXPOSE 8080` and a `HEALTHCHECK` running
+`healthcheck.py` (exits 0 when `HEALTH_PORT=0`). This is notifier-only
+and does not touch the STD wire contract.
 
 ---
 

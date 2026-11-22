@@ -16,9 +16,11 @@ import pytest  # noqa: E402
 @pytest.fixture(autouse=True)
 def _fresh_state(monkeypatch):
     """Reset module-level caches and make retries instant for every test."""
+    import health
     import image_info
     from notifiers import service_tracker_dashboard as std
 
+    health.reset()
     image_info._cache.clear()
     image_info._warned.clear()
     with std._state_lock:

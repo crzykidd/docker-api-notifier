@@ -165,6 +165,8 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
 - Python 3.11
 - `docker` (Docker SDK for Python) — Docker event subscription
 - `requests` — DNS notifier HTTP calls
+- `health.py` — `/healthz` endpoint (stdlib `http.server`, no extra
+  dependency) and the health state recorded by `main.py` and the notifiers
 - `tenacity` — retry-with-backoff for downstream notifier calls
 - `PyYAML` — interpreter YAML loading
 - Container: single-image Docker, no compose orchestration of its own
@@ -325,7 +327,9 @@ A reference template is at `notifiers/_template.py`.
 In short: one module per downstream system under `notifiers/`,
 exposing `register(**kwargs)`. Modules consume shared logging
 (`logging_setup`) and shared retry (`retry`). They own their own
-auth and wire format.
+auth and wire format, and record their final outcome with
+`health.record_success()` / `health.record_error()` (surfaced by
+`/healthz`).
 
 When adding a new notifier: copy `notifiers/_template.py`, replace
 the placeholders, wire it into `main.py`'s `NOTIFIER_TRIGGERS` and

@@ -36,8 +36,9 @@ every Docker host without it touching things you didn't ask it to touch.
 3. [Container Labels](#container-labels)
 4. [Interpreters](#interpreters)
 5. [Docker Compose Example](#docker-compose-example)
-6. [How It Works](#how-it-works)
-7. [Building Locally](#building-locally)
+6. [Health endpoint](#health-endpoint)
+7. [How It Works](#how-it-works)
+8. [Building Locally](#building-locally)
 
 ---
 
@@ -76,6 +77,7 @@ notifier targets can be added without touching the core event loop.
 | `TZ`                      | No       | `UTC`   | Timezone for log timestamps. |
 | `STD_REFRESH_SECONDS`     | No       | `60`    | Periodic re-scan interval in **seconds**. |
 | `NOTIFIER_LOG_TO_STDOUT`  | No       | `1`     | Set to `0` to silence console output. Logs still go to `/config/notifier.log`. Replaces the per-notifier `DNS_LOG_TO_STDOUT` and `STD_LOG_TO_STDOUT` vars, which are no longer recognized. |
+| `HEALTH_PORT`             | No       | `8080`  | Port for the [`/healthz` health endpoint](#health-endpoint). Set to `0` to disable it (the image's `HEALTHCHECK` then always passes). A non-numeric value falls back to `8080`. |
 | `HOST_NAME_OVERRIDE`      | No       | *host hostname* | Overrides the host name used as the DNS CNAME target (`<host>.<dockerdomain>`). If unset, the notifier reads the host's hostname from the `/etc/hostname` mount (falling back to the container's own hostname). Set this if running in WSL or other environments where the host has a different name than your DNS entries expect. |
 
 ### Technitium DNS
@@ -270,6 +272,9 @@ services:
       - /var/docker/docker-api-notifier:/config
       # Optional — drop your own interpreter YAMLs in here.
       # - /etc/docker-api-notifier/interpreters:/app/interpreters/user:ro
+    # Optional: reach /healthz from the host. Not published by default.
+    # ports:
+    #   - "8080:8080"
     restart: unless-stopped
 ```
 
@@ -284,6 +289,54 @@ Volumes:
 - `/app/interpreters/user` — optional. Mount a directory of operator
   YAMLs here to extend or override the built-in interpreters
   (Traefik, Dockflare). See [Interpreters](#interpreters) above.
+
+---
+
+## Health endpoint
+
+The notifier serves `GET /healthz` (JSON) on `HEALTH_PORT` (default `8080`,
+`0` disables it), and the image ships a Docker `HEALTHCHECK` that probes it.
+The port is not published by default; add `ports: - "8080:8080"` to reach it
+from the host.
+
+```json
+{
+  "status": "ok",
+  "version": "0.5.0",
+  "started_at": "2026-11-21T22:00:00Z",
+  "uptime_seconds": 3600,
+  "host": "dockerhost1",
+  "docker": {"connected": true, "server_version": "29.9.3",
+             "last_event_at": "2026-11-21T22:59:10Z", "events_seen": 123},
+  "refresh_loop": {"enabled": true, "interval_seconds": 60,
+                   "last_run_at": "2026-11-21T22:59:30Z"},
+  "interpreters": ["dockflare", "traefik"],
+  "notifiers": {
+    "dns": {"configured": true, "last_success_at": "2026-11-21T22:10:00Z",
+            "last_error_at": null, "last_error": null,
+            "success_count": 10, "error_count": 0},
+    "service_tracker_dashboard": {
+      "configured": true, "std_version": "0.12.0", "api_revision": 5,
+      "image_info_supported": true, "last_success_at": "2026-11-21T22:59:30Z",
+      "last_error_at": null, "last_error": null,
+      "success_count": 40, "error_count": 0}
+  }
+}
+```
+
+- **200 / `"ok"`**: the Docker daemon answers (checked at most every 15 s) and
+  the event loop is running.
+- **503 / `"unhealthy"`**: Docker is unreachable.
+- A **STD or Technitium outage does not make the notifier unhealthy**. It
+  shows in that notifier's `last_error*` / `error_count` fields while the
+  endpoint stays 200, so an auto-restart setup won't restart-loop over
+  someone else's outage.
+- `configured` reflects the env vars, not whether any container opted in.
+  `last_error` is a short, credential-scrubbed string. `std_version`,
+  `api_revision` and `image_info_supported` are `null` until the first STD
+  `/api/v1/meta` check.
+- Any other path returns 404. If the port can't be bound, the notifier logs
+  an error and keeps running without the endpoint.
 
 ---
 

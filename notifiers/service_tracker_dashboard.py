@@ -6,6 +6,7 @@ from datetime import datetime
 
 import requests
 
+import health
 from logging_setup import get_logger
 from retry import REQUEST_TIMEOUT_SECONDS, with_retry
 
@@ -365,5 +366,7 @@ def register(**kwargs):
     try:
         _post_register(endpoint, payload, headers, container_name)
         logger.debug(f"Successfully registered: {container_name} on {payload.get('host')}")
+        health.record_success("service_tracker_dashboard")
     except requests.RequestException as e:
         logger.error(f"Failed to register container '{container_name}' after retries: {e}")
+        health.record_error("service_tracker_dashboard", e)

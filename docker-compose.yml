@@ -21,6 +21,9 @@ services:
       - /etc/hostname:/etc/host_hostname:ro
       - /var/docker/docker-api-notifier:/config
       - .:/app
+    # Optional: reach /healthz from the host (HEALTH_PORT=0 disables it).
+    # ports:
+    #   - "8080:8080"
     restart: unless-stopped
     labels:
       # dockernotifier

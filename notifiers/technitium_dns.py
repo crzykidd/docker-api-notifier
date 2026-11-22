@@ -3,6 +3,7 @@ from datetime import datetime
 
 import requests
 
+import health
 from logging_setup import get_logger
 from retry import REQUEST_TIMEOUT_SECONDS, with_retry
 
@@ -61,5 +62,7 @@ def register(*, container_fqdn, zone, value, **kwargs):
     try:
         response = _do_dns_update(dns_url, params)
         logger.info(f'DNS update response for {container_fqdn}: {response.text}')
+        health.record_success("dns")
     except requests.RequestException as e:
         logger.error(f'DNS update failed for {container_name} after retries: {e}')
+        health.record_error("dns", e)
