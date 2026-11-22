@@ -2,7 +2,7 @@
 
 ![Docker Image](https://img.shields.io/badge/docker-ready-blue?logo=docker)
 ![Python](https://img.shields.io/badge/python-3.11-blue?logo=python)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 > [!IMPORTANT]
 > **Images are published to GitHub Container Registry:
@@ -421,4 +421,4 @@ and 15 kept); `:latest`, `:dev`, and `:X` are never pruned.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GNU General Public License v3.0 — see [LICENSE](LICENSE).
