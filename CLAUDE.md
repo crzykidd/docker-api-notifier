@@ -220,7 +220,7 @@ project-specific facts are:
   check (no database). CodeQL runs as GitHub's default code-scanning setup.
 - **Required checks on `main`** (ruleset "Require PR for Main"): `build`
   (image build, `docker-publish.yml`), `Lint`, `Config validation`,
-  `Compose validation`, plus a CodeQL `code_scanning` rule. CodeQL must
+  `Compose validation`, `Test`, plus a CodeQL `code_scanning` rule. CodeQL must
   complete, but its findings don't block merge (thresholds `none`) —
   triage them in the repo's Security → Code scanning view.
 - **GHCR is the only registry** (`ghcr.io/crzykidd/docker-api-notifier`,
