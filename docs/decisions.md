@@ -5,6 +5,29 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
+## 2026-11-22 — One warning per transition, plus a 10-minute back-off, for proxy 403s
+
+- **Why.** Behind `tecnativa/docker-socket-proxy` with `NETWORKS=0` /
+  `IMAGES=0`, the network-driver and image lookups get 403. The network one
+  logged only at debug (driver silently missing); the image one warned per
+  image without saying what to change.
+- **Shared module.** `docker_access.py` owns the 403 test (exactly
+  `APIError` with `status_code == 403`; `NotFound` 404 stays a normal
+  debug case), the denied/ok state per lookup kind, and the back-off. Both
+  lookups and `/healthz` use it; state is behind a lock because the refresh
+  thread and event loop both look things up.
+- **Warn on the transition into denied, not once per process.** A success
+  clears the flag and logs once at INFO, so a proxy that is fixed and later
+  broken again warns again. Repeats stay at debug.
+- **Back-off, not a permanent flag.** A denied kind is skipped for 10
+  minutes, then retried, so fixing the proxy needs no restart and a
+  refresh cycle doesn't hammer it per network/image.
+- **`/healthz` `docker_permissions`** is informational (a denial is like a
+  STD outage, not unhealthy). A kind is `unknown` until its lookup has run.
+  Non-403 failures don't change the status.
+
+---
+
 ## 2026-11-22 — STD labels hardened; network details gated per feature
 
 - **Reserved-key rule.** A `dockernotifier.std.<key>` label is dropped with

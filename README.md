@@ -36,9 +36,10 @@ every Docker host without it touching things you didn't ask it to touch.
 3. [Container Labels](#container-labels)
 4. [Interpreters](#interpreters)
 5. [Docker Compose Example](#docker-compose-example)
-6. [Health endpoint](#health-endpoint)
-7. [How It Works](#how-it-works)
-8. [Building Locally](#building-locally)
+6. [Running behind a docker-socket-proxy](#running-behind-a-docker-socket-proxy)
+7. [Health endpoint](#health-endpoint)
+8. [How It Works](#how-it-works)
+9. [Building Locally](#building-locally)
 
 ---
 
@@ -316,6 +317,62 @@ Volumes:
 
 ---
 
+## Running behind a docker-socket-proxy
+
+You can keep `/var/run/docker.sock` away from the notifier by putting a
+socket proxy such as `tecnativa/docker-socket-proxy` in front of it. The
+notifier only ever reads, so the proxy can stay read-only (`POST=0`).
+
+| Proxy setting | Needed for | If it is `0` |
+|---|---|---|
+| `CONTAINERS=1` | Listing and inspecting containers | The notifier cannot work |
+| `EVENTS=1` | The container event stream | The notifier cannot work |
+| `NETWORKS=1` | Each network's driver, sent to STD 0.13.0+ as network details | The proxy answers 403; networks still reach STD (name, aliases, addresses) but without `driver`, so STD cannot recognise macvlan, ipvlan or host networks |
+| `IMAGES=1` | The running image's digests, sent to STD 0.12.0+ as `image_info` | The proxy answers 403; STD's image-digest update check gets no data |
+| `PING=1`, `VERSION=1`, `INFO=1` | Harmless; used by the health check | |
+| `POST=0` | Keep it. The notifier never writes. | |
+
+When the proxy refuses the network or image lookup, the notifier logs one
+warning naming the setting to change, stops retrying for 10 minutes (so a
+fix takes effect without a restart), and logs once at INFO when the lookup
+works again. `/healthz` shows the current state under `docker_permissions`.
+
+```yaml
+services:
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    environment:
+      - CONTAINERS=1
+      - EVENTS=1
+      - NETWORKS=1
+      - IMAGES=1
+      - PING=1
+      - VERSION=1
+      - INFO=1
+      - POST=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  docker-api-notifier:
+    image: ghcr.io/crzykidd/docker-api-notifier:latest
+    container_name: docker-api-notifier
+    depends_on:
+      - docker-proxy
+    environment:
+      - DOCKER_HOST=tcp://docker-proxy:2375
+      - STD_URL=http://std.example.com:8815
+      - STD_API_TOKEN=TOKENFROMSTDSERVER
+      - TZ=America/Los_Angeles
+    volumes:
+      # No docker.sock mount: only the proxy touches the socket.
+      - /etc/hostname:/etc/host_hostname:ro
+      - /var/docker/docker-api-notifier:/config
+    restart: unless-stopped
+```
+
+---
+
 ## Health endpoint
 
 The notifier serves `GET /healthz` (JSON) on `HEALTH_PORT` (default `8080`,
@@ -334,6 +391,7 @@ from the host.
              "last_event_at": "2026-11-21T22:59:10Z", "events_seen": 123},
   "refresh_loop": {"enabled": true, "interval_seconds": 60,
                    "last_run_at": "2026-11-21T22:59:30Z"},
+  "docker_permissions": {"networks": "ok", "images": "ok"},
   "interpreters": ["dockflare", "traefik"],
   "notifiers": {
     "dns": {"configured": true, "last_success_at": "2026-11-21T22:10:00Z",
@@ -362,6 +420,14 @@ from the host.
   `api_revision` and `image_info_supported` are `null` until the first STD
   `/api/v1/meta` check; `features_supported` holds one boolean per gated STD
   feature (`image_info`, `network_details`), each `null` until that check.
+- `docker_permissions` reports the latest outcome of the notifier's two
+  optional Docker lookups, `networks` and `images`: `"ok"`, `"denied"` (Docker
+  answered 403, typically a socket proxy without `NETWORKS=1` / `IMAGES=1`;
+  see [Running behind a docker-socket-proxy](#running-behind-a-docker-socket-proxy))
+  or `"unknown"`. A kind stays `"unknown"` until its lookup has run at least
+  once, e.g. STD isn't configured, STD doesn't advertise the feature, or you
+  opted out with `STD_SEND_IMAGE_INFO=false` / `STD_SEND_NETWORK_DETAILS=false`.
+  A denial is informational and never makes the notifier unhealthy.
 - Any other path returns 404. If the port can't be bound, the notifier logs
   an error and keeps running without the endpoint.
 

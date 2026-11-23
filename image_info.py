@@ -13,6 +13,7 @@ register goes out without `image_info`.
 import re
 import threading
 
+import docker_access
 from logging_setup import get_logger
 
 logger = get_logger("image_info")
@@ -92,10 +93,17 @@ def lookup(container):
     if cached is not None:
         return _copy(cached)
 
+    if docker_access.should_skip("images"):
+        return None
     try:
         image = container.client.images.get(image_id)
         info = build_image_info(image.attrs or {}, image_id)
     except Exception as e:
+        if docker_access.is_denied_error(e):
+            # One warning on the transition (naming IMAGES=1), then debug only.
+            docker_access.record_denied("images")
+            logger.debug(f"Image lookup refused for {container.name}: {e}")
+            return None
         with _cache_lock:
             first = image_id not in _warned
             _warned.add(image_id)
@@ -108,6 +116,7 @@ def lookup(container):
         )
         return None
 
+    docker_access.record_ok("images")
     with _cache_lock:
         if len(_cache) >= CACHE_MAX_ENTRIES:
             _cache.pop(next(iter(_cache)))

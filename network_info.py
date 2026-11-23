@@ -16,6 +16,7 @@ import ipaddress
 import re
 import threading
 
+import docker_access
 from logging_setup import get_logger
 
 logger = get_logger("network_info")
@@ -59,11 +60,16 @@ def _driver_for(client, network_id):
     with _cache_lock:
         if network_id in _driver_cache:
             return _driver_cache[network_id]
+    if docker_access.should_skip("networks"):
+        return None
     try:
         driver = _clean_driver(client.networks.get(network_id).attrs.get("Driver"))
     except Exception as e:  # permissions, network removed, daemon hiccup
+        if docker_access.is_denied_error(e):
+            docker_access.record_denied("networks")  # warns once per transition
         logger.debug(f"Network driver lookup failed for {network_id[:12]}: {e}")
         return None
+    docker_access.record_ok("networks")
     if driver is not None:
         with _cache_lock:
             if len(_driver_cache) >= CACHE_MAX_ENTRIES:

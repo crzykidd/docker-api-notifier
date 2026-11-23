@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   doesn't remove an entry STD already has; delete that in STD.
 
 ### Fixed
+- A Docker socket proxy that blocks network or image lookups is now
+  reported once, with the setting to change (`NETWORKS=1`, `IMAGES=1`);
+  before, network details were silently missing and image lookups logged a
+  403 per image. The notifier then backs off for 10 minutes before trying
+  again (so fixing the proxy needs no restart) and logs once when the lookup
+  works again. `/healthz` gains `docker_permissions` (`networks` / `images`:
+  `ok`, `denied` or `unknown`); a denial doesn't make the notifier
+  unhealthy. The README has a new "Running behind a docker-socket-proxy"
+  section. Nothing sent to STD changes.
 - A `dockernotifier.std.*` label named like something the notifier sends
   itself (`container_name`, `networks`, `image_name`, ...) no longer stops
   that container from registering; the label is ignored with a warning.
