@@ -240,3 +240,125 @@ def test_server_head(server):
     req = urllib.request.Request(f"{server}/healthz", method="HEAD")
     with urllib.request.urlopen(req, timeout=5) as r:
         assert r.status == 200 and r.read() == b""
+
+
+# --- HEALTH_ALLOWED_IPS ---------------------------------------------------
+
+def _nets(*items):
+    import ipaddress
+    return tuple(ipaddress.ip_network(i) for i in items)
+
+
+def test_parse_allowed_unset_is_open():
+    assert health.parse_allowed_ips(None) is None
+    assert health.parse_allowed_ips("") is None
+    assert health.parse_allowed_ips("  ") is None
+
+
+def test_parse_allowed_mixed_separators_and_families():
+    got = health.parse_allowed_ips("10.100.18.10, 10.100.20.0/24\nfd00::/8  192.168.1.5/24")
+    assert {str(n) for n in got} >= {"10.100.18.10/32", "10.100.20.0/24",
+                                     "fd00::/8", "192.168.1.0/24"}
+
+
+def test_parse_allowed_skips_invalid_with_warning(caplog):
+    with caplog.at_level("WARNING", logger="health"):
+        got = health.parse_allowed_ips("10.0.0.1,bogus,300.1.1.1")
+    assert "10.0.0.1/32" in {str(n) for n in got}
+    assert "bogus" in caplog.text and "300.1.1.1" in caplog.text
+
+
+def test_parse_allowed_all_invalid_fails_closed(caplog):
+    with caplog.at_level("ERROR", logger="health"):
+        got = health.parse_allowed_ips("nope, also-nope")
+    assert got == health.LOOPBACK_NETWORKS
+    assert "failing closed" in caplog.text
+    assert not health.client_allowed("10.0.0.1", got)
+    assert health.client_allowed("127.0.0.1", got)
+
+
+@pytest.mark.parametrize("addr,ok", [
+    ("10.100.18.10", True), ("10.100.20.77", True), ("10.100.21.1", False),
+    ("fd00::5", True), ("fe80::1", False),
+    ("::ffff:10.100.18.10", True), ("::ffff:10.9.9.9", False),
+    ("127.0.0.1", True), ("::1", True), ("::ffff:127.0.0.1", True),
+    ("not-an-ip", False),
+])
+def test_client_allowed(addr, ok):
+    allowed = health.parse_allowed_ips("10.100.18.10, 10.100.20.0/24, fd00::/8")
+    assert health.client_allowed(addr, allowed) is ok
+
+
+def test_client_allowed_none_is_open():
+    assert health.client_allowed("8.8.8.8", None)
+
+
+@pytest.fixture
+def restricted(docker_ok):
+    """Server restricted to an address the test client (127.0.0.1) is not in
+    is useless because loopback is always allowed, so fake the peer address."""
+    srv = health.start_server(0, host="127.0.0.1",
+                              allowed=health.parse_allowed_ips("10.1.1.1"))
+    yield f"http://127.0.0.1:{srv.server_address[1]}", srv
+    srv.shutdown()
+    srv.server_close()
+
+
+def test_loopback_allowed_when_restricted(restricted):
+    url, _ = restricted
+    with urllib.request.urlopen(f"{url}/healthz", timeout=5) as r:
+        assert r.status == 200
+
+
+def _fake_peer(ip):
+    """Make every handler see `ip` as the TCP peer (loopback is the real one)."""
+    return mock.patch.object(
+        health._Handler, "client_address",
+        property(lambda self: (ip, 1234), lambda self, value: None), create=True)
+
+
+@pytest.mark.parametrize("peer,method,code", [
+    ("10.1.1.1", "GET", 200), ("10.1.1.1", "HEAD", 200),
+    ("10.2.2.2", "GET", 403), ("10.2.2.2", "HEAD", 403),
+])
+def test_peer_filtering(restricted, peer, method, code):
+    url, _ = restricted
+    with _fake_peer(peer), \
+            mock.patch.object(health, "snapshot", wraps=health.snapshot) as snap:
+        req = urllib.request.Request(f"{url}/healthz", method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=5) as r:
+                status, body = r.status, r.read()
+        except urllib.error.HTTPError as e:
+            status, body = e.code, e.read()
+        assert status == code
+        if code == 403:
+            snap.assert_not_called()
+            assert body == (b"" if method == "HEAD" else b'{"error": "forbidden"}')
+        else:
+            snap.assert_called_once()
+
+
+def test_denied_gets_403_for_unknown_path(restricted):
+    url, _ = restricted
+    with _fake_peer("10.2.2.2"):
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(f"{url}/nope", timeout=5)
+    assert exc.value.code == 403
+
+
+def test_start_from_env_passes_allowlist(monkeypatch):
+    monkeypatch.setenv("HEALTH_PORT", "9999")
+    monkeypatch.setenv("HEALTH_ALLOWED_IPS", "10.0.0.0/8")
+    with mock.patch.object(health, "start_server") as start:
+        health.start_from_env()
+    allowed = start.call_args.kwargs["allowed"]
+    assert "10.0.0.0/8" in {str(n) for n in allowed}
+
+
+def test_start_from_env_unset_is_open(monkeypatch):
+    monkeypatch.setenv("HEALTH_PORT", "9999")
+    monkeypatch.delenv("HEALTH_ALLOWED_IPS", raising=False)
+    with mock.patch.object(health, "start_server") as start:
+        health.start_from_env()
+    assert start.call_args.kwargs["allowed"] is None

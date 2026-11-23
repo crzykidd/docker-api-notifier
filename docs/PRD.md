@@ -27,6 +27,7 @@
 | 0.17    | 2026-11-22 | Unreleased (targets v0.6.0) — a Docker socket proxy that answers 403 to the network or image lookup is reported once per transition (naming `NETWORKS=1` / `IMAGES=1`), backed off for 10 minutes, and surfaced in `/healthz` as `docker_permissions`. New `docker_access.py` holds the shared state. README gains a socket-proxy section. No wire-contract change. |
 | 0.18    | 2026-11-22 | Release prep for v0.6.0. §5 bumped to v0.6.0; row 0.15 moved back into order. Ships rows 0.16–0.17: per-network `driver` / `ip_address` / `ipv6_address` / `mac_address` to STD v0.13.0+ behind a per-feature `/meta` gate (`network_details`, opt-out `STD_SEND_NETWORK_DETAILS`), `dockernotifier.std.skip`, hardened `dockernotifier.std.*` labels, and one-time docker-socket-proxy 403 warnings with `/healthz` `docker_permissions`. Adds the `networks[]` detail keys to the wire contract (STD v0.13.0+, capability-gated). |
 | 0.19    | 2026-11-22 | Unreleased — §3.2: the periodic refresh loop now waits one interval before its first pass (no startup double-register). The DNS notifier skips `records/add` when the CNAME already matches (target and TTL) and treats an HTTP-200 `status != "ok"` reply as a failure; no wire-contract or env-var change. |
+| 0.20    | 2026-11-22 | Unreleased — §4.2: optional `HEALTH_ALLOWED_IPS` client-IP allowlist for `/healthz` (IPs/CIDRs, loopback always allowed, 403 for others, fail closed when every entry is invalid). No wire-contract change. |
 
 ---
 
@@ -361,6 +362,21 @@ JSON 404; a bind failure logs an error and the notifier runs without the
 endpoint. The image declares `EXPOSE 8080` and a `HEALTHCHECK` running
 `healthcheck.py` (exits 0 when `HEALTH_PORT=0`). This is notifier-only
 and does not touch the STD wire contract.
+
+`HEALTH_ALLOWED_IPS` (optional) restricts who may read the endpoint: a
+comma- and/or whitespace-separated list of IPv4/IPv6 addresses or CIDR
+networks, parsed once at start with `ipaddress.ip_network(strict=False)`.
+Unset/empty means open to any client. Loopback is always allowed so the
+image `HEALTHCHECK` works. The check runs in the HTTP handler for GET and
+HEAD, on the TCP peer (`client_address[0]`, IPv4-mapped IPv6 normalised;
+`X-Forwarded-For` is never trusted), before any snapshot work; a denied
+client gets 403 `{"error": "forbidden"}` for every path, logged at DEBUG
+only. An unparsable entry is warned about and skipped; if all entries are
+invalid the endpoint fails closed to loopback only, with an error log.
+Caveat: the filter sees the address Docker delivers. With normal published
+ports (iptables DNAT) remote clients keep their real source IP; clients
+via the host's own loopback / docker-proxy may appear as the bridge
+gateway (e.g. `172.x.0.1`), which must then be listed.
 
 ---
 

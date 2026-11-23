@@ -82,6 +82,7 @@ notifier targets can be added without touching the core event loop.
 | `STD_REFRESH_SECONDS`     | No       | `60`    | Periodic re-scan interval in **seconds**. |
 | `NOTIFIER_LOG_TO_STDOUT`  | No       | `1`     | Set to `0` to silence console output. Logs still go to `/config/notifier.log`. Replaces the per-notifier `DNS_LOG_TO_STDOUT` and `STD_LOG_TO_STDOUT` vars, which are no longer recognized. |
 | `HEALTH_PORT`             | No       | `8080`  | Port for the [`/healthz` health endpoint](#health-endpoint). Set to `0` to disable it (the image's `HEALTHCHECK` then always passes). A non-numeric value falls back to `8080`. |
+| `HEALTH_ALLOWED_IPS`      | No       | *(unset)* | Comma- and/or whitespace-separated IPs or CIDRs (e.g. `10.100.18.10, 10.100.20.0/24, fd00::/8`) allowed to read `/healthz`; everyone else gets `403`. Unset or empty = open to any client. Loopback is always allowed. See [Health endpoint](#health-endpoint). |
 | `HOST_NAME_OVERRIDE`      | No       | *host hostname* | Overrides the host name used as the DNS CNAME target (`<host>.<dockerdomain>`). If unset, the notifier reads the host's hostname from the `/etc/hostname` mount (falling back to the container's own hostname). Set this if running in WSL or other environments where the host has a different name than your DNS entries expect. |
 
 ### Technitium DNS
@@ -398,6 +399,21 @@ The notifier serves `GET /healthz` (JSON) on `HEALTH_PORT` (default `8080`,
 `0` disables it), and the image ships a Docker `HEALTHCHECK` that probes it.
 The port is not published by default; add `ports: - "8080:8080"` to reach it
 from the host.
+
+`/healthz` has no login. To limit who can read it, set `HEALTH_ALLOWED_IPS`
+to a list of IPs and/or CIDR networks; any other client gets
+`403 {"error": "forbidden"}` (for every path). Loopback (`127.0.0.0/8`,
+`::1`) is always allowed, so the image `HEALTHCHECK` keeps working. Invalid
+entries are logged as warnings and skipped; if every entry is invalid the
+endpoint fails closed (loopback only) and an error is logged. Denied
+requests are logged at DEBUG only.
+
+The filter checks the TCP peer address and never trusts `X-Forwarded-For`
+or other headers. It sees the address Docker delivers: with normally
+published ports (iptables DNAT) remote clients keep their real source IP,
+but a client connecting through the host's own loopback / docker-proxy may
+appear as the bridge gateway (for example `172.18.0.1`) - add that address
+if you probe from the host itself.
 
 ```json
 {

@@ -16,6 +16,7 @@
 #   STD_API_TOKEN=<STD API token>
 #   TZ=America/Los_Angeles
 #   HEALTH_HOST_PORT=8080        # host port for /healthz (default 8080)
+#   HEALTH_ALLOWED_IPS=10.100.18.10   # STD host; empty = anyone
 #
 # Leave out the DNS_* or STD_* pair to run with only the other notifier.
 # Prefer HTTPS for both: the STD token travels as a bearer header and the
@@ -44,6 +45,7 @@ services:
       STD_API_TOKEN: ${STD_API_TOKEN:-}
       STD_REFRESH_SECONDS: 120
       TZ: ${TZ:-UTC}
+      HEALTH_ALLOWED_IPS: ${HEALTH_ALLOWED_IPS:-}
       # The CNAME target is <host>.<dockerdomain>; <host> is read from the
       # /etc/hostname mount below. Override it if that name is wrong for DNS.
       # HOST_NAME_OVERRIDE: docker01
@@ -70,8 +72,10 @@ services:
     # /healthz (port 8080 in the container) is published so STD, or any
     # monitor on another machine, can check this notifier. It needs no
     # login and shows versions, host names and (token-scrubbed) error
-    # text, so keep the host port reachable from your LAN only. Change the
-    # host side with HEALTH_HOST_PORT in .env if 8080 is taken.
+    # text, so keep the host port reachable from your LAN only, and set
+    # HEALTH_ALLOWED_IPS in .env to the monitor's address(es) to answer
+    # everyone else with 403. Change the host side with HEALTH_HOST_PORT
+    # in .env if 8080 is taken.
     ports:
       - "${HEALTH_HOST_PORT:-8080}:8080"
     logging:

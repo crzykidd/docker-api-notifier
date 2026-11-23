@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `HEALTH_ALLOWED_IPS`: optionally limit who can read `/healthz` to a list
+  of IP addresses and/or CIDR networks (for example
+  `10.100.18.10, 10.100.20.0/24`). Other clients get `403`. Unset (the
+  default) keeps the endpoint open; loopback is always allowed so the
+  image `HEALTHCHECK` keeps working. Invalid entries are warned about and
+  skipped; if none are valid the endpoint allows loopback only. The
+  production compose example passes it through.
 - `docker-compose-example.yml`: a production example for one Docker host.
   The notifier reaches Docker only through a read-only socket-proxy sidecar
   on an internal network, runs with a read-only filesystem, no Linux

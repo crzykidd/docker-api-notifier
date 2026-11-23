@@ -17,9 +17,13 @@ Downstream (STD, Technitium) failures only show in the per-notifier
 fields and never make the notifier unhealthy.
 
 Environment variables:
-    HEALTH_PORT  TCP port for the endpoint. Default 8080. 0 disables it.
+    HEALTH_PORT         TCP port for the endpoint. Default 8080. 0 disables it.
+    HEALTH_ALLOWED_IPS  Optional comma/whitespace-separated IPs or CIDRs allowed
+                        to read the endpoint (loopback is always allowed).
+                        Unset = open to any client.
 """
 
+import ipaddress
 import json
 import os
 import re
@@ -36,6 +40,9 @@ logger = get_logger("health")
 DEFAULT_PORT = 8080
 PING_CACHE_SECONDS = 15
 MAX_ERROR_CHARS = 200
+
+LOOPBACK_NETWORKS = (ipaddress.ip_network("127.0.0.0/8"),
+                     ipaddress.ip_network("::1/128"))
 
 _lock = threading.Lock()
 _started = time.time()
@@ -245,6 +252,11 @@ class _Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
 
     def _handle(self, head_only):
+        allowed = getattr(self.server, "allowed_networks", None)
+        if not client_allowed(self.client_address[0], allowed):
+            logger.debug(f"health http: denied {self.client_address[0]}")
+            self._send(403, {"error": "forbidden"}, head_only)
+            return
         if self.path.split("?", 1)[0] == "/healthz":
             try:
                 body, status = snapshot()
@@ -277,16 +289,66 @@ def parse_port(raw):
     return port
 
 
-def start_server(port, host="0.0.0.0"):
-    """Start the endpoint in a daemon thread. Returns the server, or None on bind failure."""
+def parse_allowed_ips(raw):
+    """HEALTH_ALLOWED_IPS value -> tuple of networks, or None (no filtering).
+
+    Entries are IPs or CIDRs separated by commas and/or whitespace. Invalid
+    entries are warned about and skipped; if every entry is invalid the
+    result is loopback only (fail closed). Never raises.
+    """
+    if raw is None or not str(raw).strip():
+        return None
+    networks = []
+    entries = [e for e in re.split(r"[,\s]+", str(raw)) if e]
+    for entry in entries:
+        try:
+            networks.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError:
+            logger.warning(f"HEALTH_ALLOWED_IPS: ignoring invalid entry {entry!r}")
+    if not networks:
+        logger.error("HEALTH_ALLOWED_IPS has no valid entries; failing closed "
+                     "(only loopback can reach /healthz)")
+        return LOOPBACK_NETWORKS
+    return tuple(networks) + LOOPBACK_NETWORKS
+
+
+def client_allowed(addr, allowed):
+    """True if the TCP peer `addr` may be served. `allowed` None = open.
+
+    Loopback is always allowed (the image HEALTHCHECK probes from inside).
+    IPv4-mapped IPv6 addresses are matched as their IPv4 form. An address
+    that does not parse is denied when a list is set.
+    """
+    if allowed is None:
+        return True
+    try:
+        ip = ipaddress.ip_address(str(addr).split("%", 1)[0])
+    except ValueError:
+        return False
+    if ip.version == 6 and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    if ip.is_loopback:
+        return True
+    return any(ip.version == net.version and ip in net for net in allowed)
+
+
+def start_server(port, host="0.0.0.0", allowed=None):
+    """Start the endpoint in a daemon thread. Returns the server, or None on bind failure.
+
+    `allowed` is a tuple of networks from parse_allowed_ips (None = open).
+    """
     try:
         server = ThreadingHTTPServer((host, port), _Handler)
     except OSError as e:
         logger.error(f"Health endpoint could not bind port {port}: {e}; continuing without it")
         return None
     server.daemon_threads = True
+    server.allowed_networks = allowed
     threading.Thread(target=server.serve_forever, name="health-http", daemon=True).start()
     logger.info(f"Health endpoint listening on {host}:{server.server_address[1]} (/healthz)")
+    if allowed is not None:
+        shown = ", ".join(str(n) for n in allowed)
+        logger.info(f"Health endpoint restricted to: {shown}")
     return server
 
 
@@ -296,4 +358,9 @@ def start_from_env():
     if port == 0:
         logger.info("HEALTH_PORT=0 — health endpoint disabled")
         return None
-    return start_server(port)
+    try:
+        allowed = parse_allowed_ips(os.environ.get("HEALTH_ALLOWED_IPS"))
+    except Exception as e:  # health must never stop the notifier
+        logger.error(f"HEALTH_ALLOWED_IPS could not be parsed ({e}); failing closed")
+        allowed = LOOPBACK_NETWORKS
+    return start_server(port, allowed=allowed)

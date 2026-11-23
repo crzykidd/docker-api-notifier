@@ -5,6 +5,23 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
+## 2026-11-22 - /healthz client allowlist (`HEALTH_ALLOWED_IPS`)
+
+- **Why.** `/healthz` has no auth but must be published for STD on another
+  machine; operators wanted to restrict it without a reverse proxy.
+- **Approach.** Stdlib `ipaddress`, parsed once at start; the check is on
+  the TCP peer in the handler (GET and HEAD), before any snapshot work.
+  Loopback is always allowed so the in-container `HEALTHCHECK` works.
+  Denials are DEBUG-only logs (scanner flood).
+- **Fail closed.** If the variable is set but no entry parses, only
+  loopback is allowed (with an ERROR), so a typo never opens the endpoint.
+- **Rejected.** Trusting `X-Forwarded-For` (spoofable); filtering at bind
+  time (cannot express per-client rules).
+- **Caveat.** Clients via the host loopback / docker-proxy can show up as
+  the bridge gateway; documented in the README and PRD §4.2.
+
+---
+
 ## 2026-11-22 — Skip unchanged DNS records via a best-effort `records/get`
 
 - **Why.** Every update called `records/add` with `overwrite=true`, which
