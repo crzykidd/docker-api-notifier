@@ -29,6 +29,7 @@
 | 0.19    | 2026-11-22 | Unreleased (targets v0.7.0) — §3.2: the periodic refresh loop now waits one interval before its first pass (no startup double-register). The DNS notifier skips `records/add` when the CNAME already matches (target and TTL) and treats an HTTP-200 `status != "ok"` reply as a failure; no wire-contract or env-var change. |
 | 0.20    | 2026-11-22 | Unreleased (targets v0.7.0) — §4.2: optional `HEALTH_ALLOWED_IPS` client-IP allowlist for `/healthz` (IPs/CIDRs, loopback always allowed, 403 for others, fail closed when every entry is invalid). No wire-contract change. |
 | 0.21    | 2026-11-22 | Release prep for v0.7.0. §5 bumped to v0.7.0. Ships the `/healthz` IP allowlist (`HEALTH_ALLOWED_IPS`), the production compose example, the Alpine base image, the DNS unchanged-record skip, and the log cleanup. No wire-contract change. |
+| 0.22    | 2026-11-23 | Release prep for v0.7.1. §5 bumped to v0.7.1. Patch: the notifier exits cleanly on SIGTERM (`docker stop` no longer waits out the grace period); CI actions updated and Dependabot grouped into one weekly PR. No wire-contract change. |
 
 ---
 
@@ -38,7 +39,7 @@
 2. [Scope](#2-scope)
 3. [Architecture](#3-architecture)
 4. [Configuration Model](#4-configuration-model)
-5. [Current State (v0.7.0)](#5-current-state-v070)
+5. [Current State (v0.7.1)](#5-current-state-v071)
 6. [v0.3.0 — Cleanup Release](#6-v030--cleanup-release)
 7. [Delivered in v0.4.0](#7-delivered-in-v040)
 8. [Versioning, Branches, and Releases](#8-versioning-branches-and-releases)
@@ -381,9 +382,9 @@ gateway (e.g. `172.x.0.1`), which must then be listed.
 
 ---
 
-## 5. Current State (v0.7.0)
+## 5. Current State (v0.7.1)
 
-Tags shipped on `main`: v0.1.0 → v0.7.0. v0.3.0 (2026-05-12) resolved
+Tags shipped on `main`: v0.1.0 → v0.7.1. v0.3.0 (2026-05-12) resolved
 every issue listed in §5.2 below. v0.4.0 (2026-05-14) shipped the
 work originally scoped across three separate releases
 (v0.3.1 / v0.3.2 / v0.4.0); the consolidation is summarized in §7.
@@ -409,6 +410,9 @@ change. v0.7.0 (2026-11-22) adds an optional `/healthz` client-IP
 allowlist (`HEALTH_ALLOWED_IPS`) and a production compose example, moves
 the image to Alpine without pip/setuptools/wheel, skips DNS records that
 already match, and logs each dispatch once. No wire-contract change.
+v0.7.1 (2026-11-23) makes the notifier exit cleanly on SIGTERM, so
+`docker stop` no longer waits out the grace period. No wire-contract
+change.
 
 ### 5.1 What works today
 

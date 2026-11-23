@@ -197,9 +197,12 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
 
 ## Build Status
 
-Current shipped release: **v0.7.0** (latest tag on `main`).
+Current shipped release: **v0.7.1** (latest tag on `main`).
 
-Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.7.0 does not
+Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.7.1 is a
+patch: the notifier exits cleanly on SIGTERM (`docker stop` used to wait
+out the grace period), CI actions are on current majors, and Dependabot
+opens one grouped PR a week. No wire-contract change. v0.7.0 does not
 change the STD wire contract. It adds an optional `/healthz` client-IP
 allowlist (`HEALTH_ALLOWED_IPS`) and `docker-compose-example.yml` (socket
 proxy, hardening, published `/healthz`), moves the image to
