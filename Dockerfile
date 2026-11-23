@@ -2,8 +2,22 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Pick up Debian security fixes the base image doesn't carry yet.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY . /app
-RUN pip install --no-cache-dir -r requirements.txt \
+# Install with a current pip, then remove the packaging tooling (pip,
+# setuptools, wheel): the notifier never uses it at runtime, and it carries
+# most of the base image's Python CVEs. pip goes last so it can uninstall
+# itself. The setuptools wheel ensurepip bundles (only used to bootstrap a
+# venv) goes too.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y setuptools wheel \
+    && pip uninstall -y pip \
+    && rm -f /usr/local/lib/python3.11/ensurepip/_bundled/setuptools-*.whl \
     && mkdir -p /app/interpreters/user
 ENV PYTHONUNBUFFERED=1
 

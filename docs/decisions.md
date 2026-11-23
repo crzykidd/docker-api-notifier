@@ -5,6 +5,27 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
+## 2026-11-22 — Image drops pip/setuptools/wheel and runs apt-get upgrade
+
+- **Why.** A Trivy scan of `:0.6.0` found our own dependencies clean; all
+  findings came from `python:3.11-slim`. The Python ones were in pip 24.0,
+  setuptools 79.0.1 and the copies they vendor (`wheel`, `jaraco.context`,
+  and pip 26.3's vendored `pkg_resources` from setuptools 70.3.0, which no
+  pip upgrade fixes).
+- **Remove the tooling rather than upgrade it.** Nothing imports it at
+  runtime (verified: the notifier and `healthcheck.py` run fine without
+  it), and removal ends the churn. pip uninstalls itself last. The
+  setuptools wheel in `ensurepip/_bundled` is deleted too (venv bootstrap
+  only). Cost: no `pip` for ad-hoc debugging inside the container.
+- **`apt-get upgrade` in the build** because the base image lags Debian
+  security (zlib had a fix it didn't carry). Single-stage kept; a
+  multi-stage build wasn't needed to get here.
+- **Dependabot** watches the base image (Python minor/major bumps ignored)
+  and pip/actions, with PRs to `dev`; security-update PRs stay off
+  because they target `main`.
+
+---
+
 ## 2026-11-22 — One warning per transition, plus a 10-minute back-off, for proxy 403s
 
 - **Why.** Behind `tecnativa/docker-socket-proxy` with `NETWORKS=0` /
