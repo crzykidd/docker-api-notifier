@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Test dependency `pytest` bumped to 9.0.3 (PYSEC-2026-1845). It is used
+  only by CI and is not in the image, so running notifiers were never
+  affected.
+
+### Changed
+- Dependabot now opens weekly update PRs against `dev` for pip, the
+  Dockerfile base image and GitHub Actions.
+
 ## [0.6.0] — 2026-11-22
 
 ### Added
