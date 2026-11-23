@@ -197,9 +197,16 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
 
 ## Build Status
 
-Current shipped release: **v0.6.0** (latest tag on `main`).
+Current shipped release: **v0.7.0** (latest tag on `main`).
 
-Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.6.0 extends
+Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.7.0 does not
+change the STD wire contract. It adds an optional `/healthz` client-IP
+allowlist (`HEALTH_ALLOWED_IPS`) and `docker-compose-example.yml` (socket
+proxy, hardening, published `/healthz`), moves the image to
+`python:3.11-alpine` without pip/setuptools/wheel, skips DNS `records/add`
+when the CNAME already matches, treats a Technitium `status != ok` reply as
+a failure, logs each dispatch once, and no longer re-registers everything
+right after the boot scan. v0.6.0 extends
 the wire contract: each `networks[]` item can carry `driver`,
 `ip_address`, `ipv6_address` and `mac_address`, sent only to STD v0.13.0+
 that advertises `network_details` via `/api/v1/meta` (older STD gets just

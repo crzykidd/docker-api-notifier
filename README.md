@@ -534,7 +534,7 @@ Images are published to `ghcr.io/crzykidd/docker-api-notifier`. Docker Hub
 - `:latest` follows the `main` branch — CI-verified pre-release.
 - `:dev` follows the `dev` branch — work in progress.
 - `:sha-<short>` is published for every push for exact pinning.
-- Semver-tagged images (`:0.6.0`, `:0`) are published from GitHub Releases.
+- Semver-tagged images (`:0.7.0`, `:0`) are published from GitHub Releases.
 
 The running version is logged at startup
 (`Starting Docker API Notifier version X.Y.Z on host: ...`) and lives in

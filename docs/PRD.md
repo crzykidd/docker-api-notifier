@@ -26,8 +26,9 @@
 | 0.16    | 2026-11-22 | Unreleased (targets v0.6.0) — `networks[]` items gain optional `driver` / `ip_address` / `ipv6_address` / `mac_address` (STD v0.13.0+), gated per feature on `/api/v1/meta` (`network_details`); opt-out `STD_SEND_NETWORK_DETAILS`. §3.3 `networks` row, §7 captured fields and §9.4 (now a per-feature gate) updated. `dockernotifier.std.*` labels: reserved keys dropped with a warning (`host` points at `HOST_NAME_OVERRIDE`), unparsable bools left out instead of sent as false, new `dockernotifier.std.skip`. |
 | 0.17    | 2026-11-22 | Unreleased (targets v0.6.0) — a Docker socket proxy that answers 403 to the network or image lookup is reported once per transition (naming `NETWORKS=1` / `IMAGES=1`), backed off for 10 minutes, and surfaced in `/healthz` as `docker_permissions`. New `docker_access.py` holds the shared state. README gains a socket-proxy section. No wire-contract change. |
 | 0.18    | 2026-11-22 | Release prep for v0.6.0. §5 bumped to v0.6.0; row 0.15 moved back into order. Ships rows 0.16–0.17: per-network `driver` / `ip_address` / `ipv6_address` / `mac_address` to STD v0.13.0+ behind a per-feature `/meta` gate (`network_details`, opt-out `STD_SEND_NETWORK_DETAILS`), `dockernotifier.std.skip`, hardened `dockernotifier.std.*` labels, and one-time docker-socket-proxy 403 warnings with `/healthz` `docker_permissions`. Adds the `networks[]` detail keys to the wire contract (STD v0.13.0+, capability-gated). |
-| 0.19    | 2026-11-22 | Unreleased — §3.2: the periodic refresh loop now waits one interval before its first pass (no startup double-register). The DNS notifier skips `records/add` when the CNAME already matches (target and TTL) and treats an HTTP-200 `status != "ok"` reply as a failure; no wire-contract or env-var change. |
-| 0.20    | 2026-11-22 | Unreleased — §4.2: optional `HEALTH_ALLOWED_IPS` client-IP allowlist for `/healthz` (IPs/CIDRs, loopback always allowed, 403 for others, fail closed when every entry is invalid). No wire-contract change. |
+| 0.19    | 2026-11-22 | Unreleased (targets v0.7.0) — §3.2: the periodic refresh loop now waits one interval before its first pass (no startup double-register). The DNS notifier skips `records/add` when the CNAME already matches (target and TTL) and treats an HTTP-200 `status != "ok"` reply as a failure; no wire-contract or env-var change. |
+| 0.20    | 2026-11-22 | Unreleased (targets v0.7.0) — §4.2: optional `HEALTH_ALLOWED_IPS` client-IP allowlist for `/healthz` (IPs/CIDRs, loopback always allowed, 403 for others, fail closed when every entry is invalid). No wire-contract change. |
+| 0.21    | 2026-11-22 | Release prep for v0.7.0. §5 bumped to v0.7.0. Ships the `/healthz` IP allowlist (`HEALTH_ALLOWED_IPS`), the production compose example, the Alpine base image, the DNS unchanged-record skip, and the log cleanup. No wire-contract change. |
 
 ---
 
@@ -37,7 +38,7 @@
 2. [Scope](#2-scope)
 3. [Architecture](#3-architecture)
 4. [Configuration Model](#4-configuration-model)
-5. [Current State (v0.6.0)](#5-current-state-v060)
+5. [Current State (v0.7.0)](#5-current-state-v070)
 6. [v0.3.0 — Cleanup Release](#6-v030--cleanup-release)
 7. [Delivered in v0.4.0](#7-delivered-in-v040)
 8. [Versioning, Branches, and Releases](#8-versioning-branches-and-releases)
@@ -380,9 +381,9 @@ gateway (e.g. `172.x.0.1`), which must then be listed.
 
 ---
 
-## 5. Current State (v0.6.0)
+## 5. Current State (v0.7.0)
 
-Tags shipped on `main`: v0.1.0 → v0.6.0. v0.3.0 (2026-05-12) resolved
+Tags shipped on `main`: v0.1.0 → v0.7.0. v0.3.0 (2026-05-12) resolved
 every issue listed in §5.2 below. v0.4.0 (2026-05-14) shipped the
 work originally scoped across three separate releases
 (v0.3.1 / v0.3.2 / v0.4.0); the consolidation is summarized in §7.
@@ -404,7 +405,10 @@ license (GPL-3.0). No behavior or wire-contract change. v0.6.0
 v0.13.0+ (only when `/api/v1/meta` advertises `network_details`), adds
 the `dockernotifier.std.skip` label, hardens `dockernotifier.std.*` label
 handling, and reports a docker-socket-proxy 403 once with the setting to
-change.
+change. v0.7.0 (2026-11-22) adds an optional `/healthz` client-IP
+allowlist (`HEALTH_ALLOWED_IPS`) and a production compose example, moves
+the image to Alpine without pip/setuptools/wheel, skips DNS records that
+already match, and logs each dispatch once. No wire-contract change.
 
 ### 5.1 What works today
 
