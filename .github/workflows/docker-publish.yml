@@ -57,7 +57,7 @@ jobs:
 
       - name: Compute tags
         id: meta_ghcr
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/crzykidd/docker-api-notifier
           flavor: latest=false
