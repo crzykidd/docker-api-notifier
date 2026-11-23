@@ -5,6 +5,24 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
+## 2026-11-22 — Skip unchanged DNS records via a best-effort `records/get`
+
+- **Why.** Every update called `records/add` with `overwrite=true`, which
+  bumps the zone SOA serial even when nothing changed (245 -> 251 in one
+  session), triggering needless zone transfers.
+- **Approach.** Derive `.../records/get` from `DNS_SERVER_URL` (must end in
+  `/records/add`, else skip the check) and compare the single CNAME's
+  target (case-insensitive, trailing dot ignored) and TTL. Any lookup
+  problem falls through to the add; the lookup is not retried (the add
+  retries) and never logs the URL or raw exception (token in query).
+- **Accepted side effect.** A skipped record keeps its older "Added by ...
+  at <timestamp>" comment.
+- **Related.** HTTP 200 with `status != "ok"` is now a DNS failure, and the
+  refresh loop sleeps before its first pass (the boot scan already
+  reported everything).
+
+---
+
 ## 2026-11-22 — Alpine base image; no pip/setuptools/wheel at runtime
 
 - **Why.** A Trivy scan of `:0.6.0` found our own dependencies clean; every

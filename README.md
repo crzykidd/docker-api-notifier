@@ -61,6 +61,9 @@ notifiers the container has opted in to via `dockernotifier.notifiers`.
 Supported notifiers today:
 
 - **Technitium DNS** — adds/updates a CNAME record on container start.
+  If the record already points at the same target with the same TTL
+  (checked via `records/get`, derived from `DNS_SERVER_URL`), it is left
+  alone so the zone's SOA serial doesn't bump.
 - **Service Tracker Dashboard (STD)** — POSTs container metadata to
   STD's register endpoint.
 
@@ -415,6 +418,9 @@ from the host.
   shows in that notifier's `last_error*` / `error_count` fields while the
   endpoint stays 200, so an auto-restart setup won't restart-loop over
   someone else's outage.
+- `refresh_loop.last_run_at` is `null` until the first refresh pass, which
+  runs `interval_seconds` after startup (the boot scan covers the start).
+  It does not affect `status`.
 - `configured` reflects the env vars, not whether any container opted in.
   `last_error` is a short, credential-scrubbed string. `std_version`,
   `api_revision` and `image_info_supported` are `null` until the first STD

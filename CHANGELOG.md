@@ -19,8 +19,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runtime. Inside the container there is `sh` but no `bash`, and no `pip`.
 
 ### Changed
+- Each notifier dispatch is now logged once at INFO (the `main.py` line
+  next to `[MATCH]`); the duplicate line from inside the STD and DNS
+  notifier modules moved to DEBUG.
+- A DNS update now logs one short INFO line
+  (`DNS record <fqdn> CNAME <value>: set`); Technitium's full JSON reply is
+  logged at DEBUG.
+- The periodic refresh loop now waits `STD_REFRESH_SECONDS` before its
+  first pass instead of re-registering every container right after the
+  boot scan. `/healthz` `refresh_loop.last_run_at` is `null` until that
+  first refresh; this does not affect the health status.
 - Dependabot now opens weekly update PRs against `dev` for pip, the
   Dockerfile base image and GitHub Actions.
+
+### Fixed
+- The DNS notifier no longer rewrites a CNAME that already points at the
+  right target with the same TTL (it checks with Technitium's
+  `records/get` first, best-effort), so the zone's SOA serial stops
+  bumping on every update and secondaries stop getting needless zone
+  transfers. A skipped record keeps its older "Added by ... at <time>"
+  comment.
+- A Technitium reply of HTTP 200 with `"status": "error"` is now treated as
+  a DNS failure (ERROR log with the reason, `/healthz` `error_count`)
+  instead of a success.
 
 ## [0.6.0] — 2026-11-22
 

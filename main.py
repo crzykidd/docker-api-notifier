@@ -97,6 +97,8 @@ def is_trigger_enabled(notifier, action):
 def periodic_update_loop(docker_host):
     client = docker.from_env()
     while True:
+        # Sleep first: the boot scan already reported every container.
+        time.sleep(STD_REFRESH_SECONDS)
         logger.debug(f"STD refresh loop — every {STD_REFRESH_SECONDS} sec")
         for container in client.containers.list():
             try:
@@ -104,7 +106,6 @@ def periodic_update_loop(docker_host):
             except Exception as e:
                 logger.error(f"Refresh failed for {container.name}: {e}")
         health.record_refresh()
-        time.sleep(STD_REFRESH_SECONDS)
 
 
 def get_version():

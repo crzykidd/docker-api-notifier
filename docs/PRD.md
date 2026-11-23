@@ -26,6 +26,7 @@
 | 0.16    | 2026-11-22 | Unreleased (targets v0.6.0) — `networks[]` items gain optional `driver` / `ip_address` / `ipv6_address` / `mac_address` (STD v0.13.0+), gated per feature on `/api/v1/meta` (`network_details`); opt-out `STD_SEND_NETWORK_DETAILS`. §3.3 `networks` row, §7 captured fields and §9.4 (now a per-feature gate) updated. `dockernotifier.std.*` labels: reserved keys dropped with a warning (`host` points at `HOST_NAME_OVERRIDE`), unparsable bools left out instead of sent as false, new `dockernotifier.std.skip`. |
 | 0.17    | 2026-11-22 | Unreleased (targets v0.6.0) — a Docker socket proxy that answers 403 to the network or image lookup is reported once per transition (naming `NETWORKS=1` / `IMAGES=1`), backed off for 10 minutes, and surfaced in `/healthz` as `docker_permissions`. New `docker_access.py` holds the shared state. README gains a socket-proxy section. No wire-contract change. |
 | 0.18    | 2026-11-22 | Release prep for v0.6.0. §5 bumped to v0.6.0; row 0.15 moved back into order. Ships rows 0.16–0.17: per-network `driver` / `ip_address` / `ipv6_address` / `mac_address` to STD v0.13.0+ behind a per-feature `/meta` gate (`network_details`, opt-out `STD_SEND_NETWORK_DETAILS`), `dockernotifier.std.skip`, hardened `dockernotifier.std.*` labels, and one-time docker-socket-proxy 403 warnings with `/healthz` `docker_permissions`. Adds the `networks[]` detail keys to the wire contract (STD v0.13.0+, capability-gated). |
+| 0.19    | 2026-11-22 | Unreleased — §3.2: the periodic refresh loop now waits one interval before its first pass (no startup double-register). The DNS notifier skips `records/add` when the CNAME already matches (target and TTL) and treats an HTTP-200 `status != "ok"` reply as a failure; no wire-contract or env-var change. |
 
 ---
 
@@ -189,8 +190,9 @@ startup (see §1.3 and §11).
    `action="boot"`.
 2. Docker event subscription — events whose `Action` is in
    `watched_actions` are processed live.
-3. Periodic loop — every `STD_REFRESH_SECONDS` (default 60s), every
-   running container is reprocessed with `action="refresh"`. Started
+3. Periodic loop — every `STD_REFRESH_SECONDS` (default 60s; the first
+   pass runs one interval after startup, since the boot pass already
+   reported everything), every running container is reprocessed with `action="refresh"`. Started
    only when STD is configured (see below).
 
 The periodic loop exists for resilience: if the notifier missed an
