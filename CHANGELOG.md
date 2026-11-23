@@ -11,12 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Test dependency `pytest` bumped to 9.0.3 (PYSEC-2026-1845). It is used
   only by CI and is not in the image, so running notifiers were never
   affected.
-- The image now installs Debian security updates on top of the base image
-  and no longer ships pip, setuptools or wheel (packaging tooling the
-  notifier never uses at runtime). That removes every Python CVE a scanner
-  reports and the one OS CVE with a released fix (zlib). The remaining OS
-  findings have no Debian fix yet and are picked up by future rebuilds.
-  Side effect: `pip` is no longer available inside the container.
+- The image is now based on Alpine (`python:3.11-alpine`) instead of
+  Debian slim: about half the size (~120 MB vs ~250 MB) and no known CVEs
+  at release time, versus ~217 OS findings on slim (none of which had a
+  Debian fix). The build also applies Alpine security updates and no
+  longer ships pip, setuptools or wheel, which the notifier never uses at
+  runtime. Inside the container there is `sh` but no `bash`, and no `pip`.
 
 ### Changed
 - Dependabot now opens weekly update PRs against `dev` for pip, the

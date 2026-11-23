@@ -169,7 +169,8 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
   dependency) and the health state recorded by `main.py` and the notifiers
 - `tenacity` — retry-with-backoff for downstream notifier calls
 - `PyYAML` — interpreter YAML loading
-- Container: single-image Docker, no compose orchestration of its own
+- Container: single-image Docker on `python:3.11-alpine` (no pip in the
+  final image), no compose orchestration of its own
   - `Dockerfile` — production image
   - `docker-compose.yml` — example deployment
 

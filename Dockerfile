@@ -1,16 +1,14 @@
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 WORKDIR /app
 
-# Pick up Debian security fixes the base image doesn't carry yet.
-RUN apt-get update \
-    && apt-get upgrade -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+# Pick up Alpine security fixes the base image doesn't carry yet.
+RUN apk upgrade --no-cache
 
 COPY . /app
 # Install with a current pip, then remove the packaging tooling (pip,
 # setuptools, wheel): the notifier never uses it at runtime, and it carries
-# most of the base image's Python CVEs. pip goes last so it can uninstall
+# the base image's Python CVEs. pip goes last so it can uninstall
 # itself. The setuptools wheel ensurepip bundles (only used to bootstrap a
 # venv) goes too.
 RUN pip install --no-cache-dir --upgrade pip \

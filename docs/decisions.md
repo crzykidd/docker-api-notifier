@@ -5,24 +5,30 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
-## 2026-11-22 — Image drops pip/setuptools/wheel and runs apt-get upgrade
+## 2026-11-22 — Alpine base image; no pip/setuptools/wheel at runtime
 
-- **Why.** A Trivy scan of `:0.6.0` found our own dependencies clean; all
-  findings came from `python:3.11-slim`. The Python ones were in pip 24.0,
-  setuptools 79.0.1 and the copies they vendor (`wheel`, `jaraco.context`,
-  and pip 26.3's vendored `pkg_resources` from setuptools 70.3.0, which no
-  pip upgrade fixes).
-- **Remove the tooling rather than upgrade it.** Nothing imports it at
-  runtime (verified: the notifier and `healthcheck.py` run fine without
-  it), and removal ends the churn. pip uninstalls itself last. The
-  setuptools wheel in `ensurepip/_bundled` is deleted too (venv bootstrap
-  only). Cost: no `pip` for ad-hoc debugging inside the container.
-- **`apt-get upgrade` in the build** because the base image lags Debian
-  security (zlib had a fix it didn't carry). Single-stage kept; a
-  multi-stage build wasn't needed to get here.
+- **Why.** A Trivy scan of `:0.6.0` found our own dependencies clean; every
+  finding came from `python:3.11-slim`: ~247 Debian ones (one with a fix,
+  zlib) and 10 in pip/setuptools and their vendored copies (`wheel`,
+  `jaraco.context`, and pip 26.3's vendored `pkg_resources` from
+  setuptools 70.3.0, which no pip upgrade fixes).
+- **Alpine over slim.** A trial `python:3.11-alpine` build was 119 MB vs
+  248 MB and scanned at 0 findings vs 217. All runtime deps have musllinux
+  wheels or are pure Python, so no compiler is needed. Risk accepted:
+  musl's resolver differs from glibc (search domains / short names);
+  verify against real STD and Technitium hostnames on `:dev` before
+  release. Rejected: distroless (no shell to debug with) and
+  Chainguard/Wolfi (free tier is `:latest` only, can't pin 3.11).
+- **Remove the packaging tooling rather than upgrade it.** Nothing imports
+  it at runtime (the notifier and `healthcheck.py` verified without it).
+  pip uninstalls itself last; the setuptools wheel in
+  `ensurepip/_bundled` (venv bootstrap only) is deleted too. Cost: no
+  `pip` for ad-hoc debugging in the container.
+- **`apk upgrade` in the build** because a base image can lag its distro's
+  security fixes (slim was missing the zlib fix).
 - **Dependabot** watches the base image (Python minor/major bumps ignored)
-  and pip/actions, with PRs to `dev`; security-update PRs stay off
-  because they target `main`.
+  and pip/actions, with PRs to `dev`; security-update PRs stay off because
+  they target `main`.
 
 ---
 
