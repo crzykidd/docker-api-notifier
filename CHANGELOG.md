@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-22
+
 ### Added
 - Sends each network's driver, IPv4, IPv6 and MAC address to Service Tracker
   Dashboard 0.13.0+, so its Ports page handles macvlan/ipvlan and
@@ -292,7 +294,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.2...v0.4.3

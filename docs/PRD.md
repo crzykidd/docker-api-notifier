@@ -22,9 +22,10 @@
 | 0.12    | 2026-11-21 | Unreleased (targets v0.5.0) — `image_info` (running image digests and OCI labels) sent to STD v0.12.0+, gated on STD's `/api/v1/meta`; opt-out `STD_SEND_IMAGE_INFO`. New §9.4 documents the wire contract, the capability gate, and the 0.5.0 ↔ STD 0.12.0+ pairing. Retry policy changed (§5.1, §5.2 N1): 4xx is no longer retried; every outbound request has a 10 s timeout. A `pytest` suite and a CI `Test` job now exist (§10 test-coverage question resolved). |
 | 0.13    | 2026-11-21 | Unreleased (targets v0.5.0) — `/healthz` health endpoint. §3 diagram and §3.1 add `health.py` and its HTTP daemon thread; §3.3 step 4 says notifiers record their final outcome for it; §4 documents `HEALTH_PORT`; new §4.2 documents the endpoint, 200/503 semantics (downstream outages never make it unhealthy) and the image `HEALTHCHECK`. No wire-contract change. |
 | 0.14    | 2026-11-21 | Release prep for v0.5.0. §5 bumped to v0.5.0 (ToC link fixed). Ships rows 0.12–0.13: `image_info` to STD v0.12.0+ gated on `/api/v1/meta`, the `/healthz` endpoint and image `HEALTHCHECK`, 4xx no longer retried, 10 s request timeouts, the `pytest` suite, and a fix that stops the DNS token being written to the log. Adds the `image_info` wire key (STD v0.12.0+, capability-gated). |
+| 0.15    | 2026-11-22 | Release prep for v0.5.1. §5 bumped to v0.5.1. Docs-only release: the README's license statement corrected to GPL-3.0 (matching `LICENSE`). No behavior or wire-contract change. |
 | 0.16    | 2026-11-22 | Unreleased (targets v0.6.0) — `networks[]` items gain optional `driver` / `ip_address` / `ipv6_address` / `mac_address` (STD v0.13.0+), gated per feature on `/api/v1/meta` (`network_details`); opt-out `STD_SEND_NETWORK_DETAILS`. §3.3 `networks` row, §7 captured fields and §9.4 (now a per-feature gate) updated. `dockernotifier.std.*` labels: reserved keys dropped with a warning (`host` points at `HOST_NAME_OVERRIDE`), unparsable bools left out instead of sent as false, new `dockernotifier.std.skip`. |
 | 0.17    | 2026-11-22 | Unreleased (targets v0.6.0) — a Docker socket proxy that answers 403 to the network or image lookup is reported once per transition (naming `NETWORKS=1` / `IMAGES=1`), backed off for 10 minutes, and surfaced in `/healthz` as `docker_permissions`. New `docker_access.py` holds the shared state. README gains a socket-proxy section. No wire-contract change. |
-| 0.15    | 2026-11-22 | Release prep for v0.5.1. §5 bumped to v0.5.1. Docs-only release: the README's license statement corrected to GPL-3.0 (matching `LICENSE`). No behavior or wire-contract change. |
+| 0.18    | 2026-11-22 | Release prep for v0.6.0. §5 bumped to v0.6.0; row 0.15 moved back into order. Ships rows 0.16–0.17: per-network `driver` / `ip_address` / `ipv6_address` / `mac_address` to STD v0.13.0+ behind a per-feature `/meta` gate (`network_details`, opt-out `STD_SEND_NETWORK_DETAILS`), `dockernotifier.std.skip`, hardened `dockernotifier.std.*` labels, and one-time docker-socket-proxy 403 warnings with `/healthz` `docker_permissions`. Adds the `networks[]` detail keys to the wire contract (STD v0.13.0+, capability-gated). |
 
 ---
 
@@ -34,7 +35,7 @@
 2. [Scope](#2-scope)
 3. [Architecture](#3-architecture)
 4. [Configuration Model](#4-configuration-model)
-5. [Current State (v0.5.1)](#5-current-state-v051)
+5. [Current State (v0.6.0)](#5-current-state-v060)
 6. [v0.3.0 — Cleanup Release](#6-v030--cleanup-release)
 7. [Delivered in v0.4.0](#7-delivered-in-v040)
 8. [Versioning, Branches, and Releases](#8-versioning-branches-and-releases)
@@ -361,9 +362,9 @@ and does not touch the STD wire contract.
 
 ---
 
-## 5. Current State (v0.5.1)
+## 5. Current State (v0.6.0)
 
-Tags shipped on `main`: v0.1.0 → v0.5.1. v0.3.0 (2026-05-12) resolved
+Tags shipped on `main`: v0.1.0 → v0.6.0. v0.3.0 (2026-05-12) resolved
 every issue listed in §5.2 below. v0.4.0 (2026-05-14) shipped the
 work originally scoped across three separate releases
 (v0.3.1 / v0.3.2 / v0.4.0); the consolidation is summarized in §7.
@@ -380,7 +381,12 @@ v0.5.0 (2026-11-21) sends `image_info` to STD v0.12.0+ (only when STD's
 `/healthz` endpoint and image `HEALTHCHECK`, stops retrying 4xx, adds
 10 s request timeouts, and stops the DNS token leaking into the log.
 v0.5.1 (2026-11-22) is docs-only: the README now states the actual
-license (GPL-3.0). No behavior or wire-contract change.
+license (GPL-3.0). No behavior or wire-contract change. v0.6.0
+(2026-11-22) sends each network's driver, IPv4, IPv6 and MAC to STD
+v0.13.0+ (only when `/api/v1/meta` advertises `network_details`), adds
+the `dockernotifier.std.skip` label, hardens `dockernotifier.std.*` label
+handling, and reports a docker-socket-proxy 403 once with the setting to
+change.
 
 ### 5.1 What works today
 
