@@ -36,9 +36,10 @@ every Docker host without it touching things you didn't ask it to touch.
 3. [Container Labels](#container-labels)
 4. [Interpreters](#interpreters)
 5. [Docker Compose Example](#docker-compose-example)
-6. [Health endpoint](#health-endpoint)
-7. [How It Works](#how-it-works)
-8. [Building Locally](#building-locally)
+6. [Running behind a docker-socket-proxy](#running-behind-a-docker-socket-proxy)
+7. [Health endpoint](#health-endpoint)
+8. [How It Works](#how-it-works)
+9. [Building Locally](#building-locally)
 
 ---
 
@@ -106,6 +107,12 @@ notifier targets can be added without touching the core event loop.
 > STD's `/api/v1/meta` advertises support, so older STD versions keep
 > working unchanged (the notifier logs once that image info is not
 > being sent). STD should be upgraded first.
+>
+> **Notifier v0.6.0 sends each network's `driver`, `ip_address`,
+> `ipv6_address` and `mac_address` to STD v0.13.0 or later** (for its
+> macvlan/ipvlan and host-network port handling). Like `image_info` it is
+> sent only when STD's `/api/v1/meta` advertises `network_details`; older
+> STD gets just `name` and `aliases`, as before.
 
 | Variable                     | Required | Default | Description |
 |------------------------------|----------|---------|-------------|
@@ -113,6 +120,7 @@ notifier targets can be added without touching the core event loop.
 | `STD_API_TOKEN`              | Yes (for STD) | —       | Bearer token configured on the STD side. |
 | `STD_REPORT_ALL_CONTAINERS`  | No       | `false` | When truthy (`true`, `1`, `yes` — case-insensitive), report **every running container on this host** to STD regardless of whether it has the `dockernotifier.notifiers=service-tracker-dashboard` opt-in label. Default off preserves per-container opt-in behavior. **Only affects STD** — the DNS notifier still requires explicit per-container opt-in via labels. Unrecognized values log a warning at startup and are treated as off. |
 | `STD_SEND_IMAGE_INFO`        | No       | `true`  | When truthy, send the running image's digests (`RepoDigests`, image id), creation time, and OCI labels (`org.opencontainers.image.version` / `.revision` / `.source`) to STD, so STD 0.12.0+ can tell whether a moving tag (`latest`, `stable`) has a newer image. Only sent when STD advertises support; set `false` to never send image details. **Only affects STD.** |
+| `STD_SEND_NETWORK_DETAILS`   | No       | `true`  | When truthy, send each network's driver, IPv4, IPv6 and MAC address to STD 0.13.0+. Only sent when STD advertises support; set `false` to send just network names and aliases. **Only affects STD.** |
 | `INTERPRETER_RELOAD_ON_EACH_EVENT` | No       | `false` | Debug-only. When truthy, re-reads YAML interpreters from disk on every dispatch instead of once at startup. Use while iterating on a new YAML; do not leave on in production. |
 
 If a notifier's required env vars are missing, that notifier no-ops —
@@ -160,6 +168,21 @@ applies its own defaults for anything you don't.
 | `dockernotifier.std.group`                  | Group label for dashboard organization. |
 | `dockernotifier.std.icon`                   | Icon filename (e.g. `sonarr.svg`). |
 | `dockernotifier.std.sort.priority`          | Numeric sort order within a group. |
+| `dockernotifier.std.skip`                   | `true` — never report this container to STD, even with `STD_REPORT_ALL_CONTAINERS` on or `service-tracker-dashboard` in `dockernotifier.notifiers`. DNS is unaffected. It only stops reporting: it does **not** remove an entry STD already has (delete it in STD). |
+
+**Reserved keys.** A `dockernotifier.std.<key>` label whose key is something
+the notifier sends itself (`container_name`, `container_id`, `docker_host`,
+`docker_status`, `image_name`, `stack_name`, `started_at`, `action`,
+`networks`, `exposed_ports`, `published_ports`, `host`, `image_info`,
+`exposure_observations`, `timestamp`) is ignored with a warning. To set the
+host name use `HOST_NAME_OVERRIDE`, not `dockernotifier.std.host`.
+
+**Boolean labels** (`internal.health`, `external.health`, `skip`) accept
+`true`/`1`/`yes`/`on` and `false`/`0`/`no`/`off`, case-insensitive. Anything
+else logs a warning and the key is left out of the payload, so STD keeps
+what it has (it is not sent as `false`). On a brand-new container STD
+creates a missing health toggle as disabled, so a typo there still ends up
+off; on an existing entry it means "no change".
 
 > **Note on label naming.** Container label keys (the
 > `dockernotifier.std.*` keys you set on watched containers) are
@@ -174,7 +197,9 @@ applies its own defaults for anything you don't.
 > also carries `networks`, `exposed_ports`, and `published_ports`
 > read straight from the Docker API. No new labels or env vars are
 > required to enable this — it is automatic for every container
-> reported to STD. Requires STD v0.6.0+.
+> reported to STD. Requires STD v0.6.0+. From v0.6.0 each network entry
+> also carries its driver, IPv4/IPv6 and MAC address when STD 0.13.0+
+> advertises `network_details` (see `STD_SEND_NETWORK_DETAILS`).
 
 ---
 
@@ -292,6 +317,62 @@ Volumes:
 
 ---
 
+## Running behind a docker-socket-proxy
+
+You can keep `/var/run/docker.sock` away from the notifier by putting a
+socket proxy such as `tecnativa/docker-socket-proxy` in front of it. The
+notifier only ever reads, so the proxy can stay read-only (`POST=0`).
+
+| Proxy setting | Needed for | If it is `0` |
+|---|---|---|
+| `CONTAINERS=1` | Listing and inspecting containers | The notifier cannot work |
+| `EVENTS=1` | The container event stream | The notifier cannot work |
+| `NETWORKS=1` | Each network's driver, sent to STD 0.13.0+ as network details | The proxy answers 403; networks still reach STD (name, aliases, addresses) but without `driver`, so STD cannot recognise macvlan, ipvlan or host networks |
+| `IMAGES=1` | The running image's digests, sent to STD 0.12.0+ as `image_info` | The proxy answers 403; STD's image-digest update check gets no data |
+| `PING=1`, `VERSION=1`, `INFO=1` | Harmless; used by the health check | |
+| `POST=0` | Keep it. The notifier never writes. | |
+
+When the proxy refuses the network or image lookup, the notifier logs one
+warning naming the setting to change, stops retrying for 10 minutes (so a
+fix takes effect without a restart), and logs once at INFO when the lookup
+works again. `/healthz` shows the current state under `docker_permissions`.
+
+```yaml
+services:
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    environment:
+      - CONTAINERS=1
+      - EVENTS=1
+      - NETWORKS=1
+      - IMAGES=1
+      - PING=1
+      - VERSION=1
+      - INFO=1
+      - POST=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+
+  docker-api-notifier:
+    image: ghcr.io/crzykidd/docker-api-notifier:latest
+    container_name: docker-api-notifier
+    depends_on:
+      - docker-proxy
+    environment:
+      - DOCKER_HOST=tcp://docker-proxy:2375
+      - STD_URL=http://std.example.com:8815
+      - STD_API_TOKEN=TOKENFROMSTDSERVER
+      - TZ=America/Los_Angeles
+    volumes:
+      # No docker.sock mount: only the proxy touches the socket.
+      - /etc/hostname:/etc/host_hostname:ro
+      - /var/docker/docker-api-notifier:/config
+    restart: unless-stopped
+```
+
+---
+
 ## Health endpoint
 
 The notifier serves `GET /healthz` (JSON) on `HEALTH_PORT` (default `8080`,
@@ -310,6 +391,7 @@ from the host.
              "last_event_at": "2026-11-21T22:59:10Z", "events_seen": 123},
   "refresh_loop": {"enabled": true, "interval_seconds": 60,
                    "last_run_at": "2026-11-21T22:59:30Z"},
+  "docker_permissions": {"networks": "ok", "images": "ok"},
   "interpreters": ["dockflare", "traefik"],
   "notifiers": {
     "dns": {"configured": true, "last_success_at": "2026-11-21T22:10:00Z",
@@ -317,7 +399,9 @@ from the host.
             "success_count": 10, "error_count": 0},
     "service_tracker_dashboard": {
       "configured": true, "std_version": "0.12.0", "api_revision": 5,
-      "image_info_supported": true, "last_success_at": "2026-11-21T22:59:30Z",
+      "image_info_supported": true,
+      "features_supported": {"image_info": true, "network_details": true},
+      "last_success_at": "2026-11-21T22:59:30Z",
       "last_error_at": null, "last_error": null,
       "success_count": 40, "error_count": 0}
   }
@@ -334,7 +418,16 @@ from the host.
 - `configured` reflects the env vars, not whether any container opted in.
   `last_error` is a short, credential-scrubbed string. `std_version`,
   `api_revision` and `image_info_supported` are `null` until the first STD
-  `/api/v1/meta` check.
+  `/api/v1/meta` check; `features_supported` holds one boolean per gated STD
+  feature (`image_info`, `network_details`), each `null` until that check.
+- `docker_permissions` reports the latest outcome of the notifier's two
+  optional Docker lookups, `networks` and `images`: `"ok"`, `"denied"` (Docker
+  answered 403, typically a socket proxy without `NETWORKS=1` / `IMAGES=1`;
+  see [Running behind a docker-socket-proxy](#running-behind-a-docker-socket-proxy))
+  or `"unknown"`. A kind stays `"unknown"` until its lookup has run at least
+  once, e.g. STD isn't configured, STD doesn't advertise the feature, or you
+  opted out with `STD_SEND_IMAGE_INFO=false` / `STD_SEND_NETWORK_DETAILS=false`.
+  A denial is informational and never makes the notifier unhealthy.
 - Any other path returns 404. If the port can't be bound, the notifier logs
   an error and keeps running without the endpoint.
 
@@ -403,7 +496,7 @@ Images are published to `ghcr.io/crzykidd/docker-api-notifier`. Docker Hub
 - `:latest` follows the `main` branch — CI-verified pre-release.
 - `:dev` follows the `dev` branch — work in progress.
 - `:sha-<short>` is published for every push for exact pinning.
-- Semver-tagged images (`:0.5.1`, `:0`) are published from GitHub Releases.
+- Semver-tagged images (`:0.6.0`, `:0`) are published from GitHub Releases.
 
 The running version is logged at startup
 (`Starting Docker API Notifier version X.Y.Z on host: ...`) and lives in

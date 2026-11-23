@@ -88,3 +88,89 @@ def test_send_image_info_env_parsing(monkeypatch):
     assert main._parse_bool_env("STD_SEND_IMAGE_INFO", default=True) is False
     monkeypatch.delenv("STD_SEND_IMAGE_INFO")
     assert main._parse_bool_env("STD_SEND_IMAGE_INFO", default=True) is True
+
+
+# --- std.* labels, skip, network details ----------------------------------
+
+STD_ONLY = {"dockernotifier.notifiers": "service-tracker-dashboard"}
+
+
+def _std_container(extra=None, networks=None):
+    c = _container({**STD_ONLY, **(extra or {})})
+    c.attrs["NetworkSettings"] = {"Networks": networks or {}}
+    return c
+
+
+def test_colliding_label_does_not_crash_and_warns(notifiers, caplog):
+    std, _ = notifiers
+    c = _std_container({"dockernotifier.std.container_name": "evil",
+                        "dockernotifier.std.networks": "x",
+                        "dockernotifier.std.timestamp": "yesterday",
+                        "dockernotifier.std.group": "media"})
+    with caplog.at_level("WARNING"):
+        main.handle_container_event(c, "host", "start")
+    kw = std.register.call_args.kwargs
+    assert kw["container_name"] == "web" and kw["group"] == "media"
+    assert "timestamp" not in kw and kw["networks"] == []
+    warned = " ".join(r.message for r in caplog.records)
+    assert "web" in warned and "dockernotifier.std.container_name" in warned
+    assert "dockernotifier.std.timestamp" in warned
+
+
+def test_std_host_label_dropped_with_pointer(notifiers, caplog):
+    std, _ = notifiers
+    c = _std_container({"dockernotifier.std.host": "other"})
+    with caplog.at_level("WARNING"):
+        main.handle_container_event(c, "host", "start")
+    assert std.register.call_args.kwargs["docker_host"] == "host"
+    assert "host" not in std.register.call_args.kwargs
+    assert any("HOST_NAME_OVERRIDE" in r.message for r in caplog.records)
+
+
+def test_skip_stops_std_even_with_report_all(notifiers, monkeypatch):
+    std, _ = notifiers
+    monkeypatch.setattr(main, "STD_REPORT_ALL_CONTAINERS", True)
+    c = _container({"dockernotifier.std.skip": "true"})
+    main.handle_container_event(c, "host", "start")
+    std.register.assert_not_called()
+
+
+def test_skip_does_not_affect_dns(notifiers):
+    std, dns = notifiers
+    c = _container({**_container().attrs["Config"]["Labels"],
+                    "dockernotifier.std.skip": "yes"})
+    main.handle_container_event(c, "host", "start")
+    std.register.assert_not_called()
+    dns.register.assert_called_once()
+
+
+def test_skip_false_or_typo_still_reports_and_skip_not_forwarded(notifiers):
+    std, _ = notifiers
+    for value in ("false", "maybe"):
+        std.register.reset_mock()
+        main.handle_container_event(
+            _std_container({"dockernotifier.std.skip": value}), "host", "start")
+        assert "skip" not in std.register.call_args.kwargs
+
+
+def test_network_details_collected_for_std(notifiers):
+    std, _ = notifiers
+    c = _std_container(networks={"lan": {
+        "Aliases": None, "NetworkID": "n1", "IPAddress": "192.168.1.50",
+        "GlobalIPv6Address": "", "MacAddress": "02:42:ac:11:00:02"}})
+    c.client.networks.get.return_value = mock.Mock(attrs={"Driver": "macvlan"})
+    main.handle_container_event(c, "host", "start")
+    assert std.register.call_args.kwargs["networks"] == [{
+        "name": "lan", "aliases": [], "driver": "macvlan",
+        "ip_address": "192.168.1.50", "mac_address": "02:42:ac:11:00:02"}]
+
+
+def test_dns_only_makes_no_network_lookups(notifiers):
+    std, dns = notifiers
+    labels = {k: v for k, v in _container().attrs["Config"]["Labels"].items()}
+    labels["dockernotifier.notifiers"] = "dns"
+    c = _container(labels)
+    c.attrs["NetworkSettings"] = {"Networks": {"lan": {"NetworkID": "n1"}}}
+    main.handle_container_event(c, "host", "start")
+    dns.register.assert_called_once()
+    c.client.networks.get.assert_not_called()

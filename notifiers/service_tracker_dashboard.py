@@ -7,6 +7,7 @@ from datetime import datetime
 import requests
 
 import health
+import network_info
 from logging_setup import get_logger
 from retry import REQUEST_TIMEOUT_SECONDS, with_retry
 
@@ -35,7 +36,9 @@ _PASSTHROUGH = {
     "started_at", "image_name", "internalurl", "externalurl",
     "timestamp",
     # v0.3.2: network/port capture fields. Already in canonical shape;
-    # consumed by STD v0.6.0+.
+    # consumed by STD v0.6.0+. Since v0.6.0 each networks item may also carry
+    # driver/ip_address/ipv6_address/mac_address (STD v0.13.0+, gated on the
+    # "network_details" feature; reduced to name/aliases otherwise).
     "networks", "exposed_ports", "published_ports",
     # v0.4.0: interpreter outputs. List of ExposureObservation dicts
     # (possibly empty); consumed by STD v0.6.0+. An empty list means
@@ -52,6 +55,58 @@ _PASSTHROUGH = {
 # Keys in the canonical schema that need type coercion from string.
 _BOOL_FIELDS = {"internal_health_check_enabled", "external_health_check_enabled"}
 _INT_FIELDS = {"sort_priority"}
+
+
+_TRUE = ("true", "1", "yes", "on")
+_FALSE = ("false", "0", "no", "off")
+
+
+def parse_bool(value):
+    """True / False for the accepted spellings (case-insensitive), else None."""
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in _TRUE:
+        return True
+    if text in _FALSE:
+        return False
+    return None
+
+
+def _env_on(name, default=True):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    parsed = parse_bool(raw)
+    if parsed is None:
+        if raw.strip() == "":
+            return False
+        logger.warning(f"Unrecognized boolean value for {name}={raw!r}; treating as off")
+        return False
+    return parsed
+
+
+def send_network_details_enabled():
+    """False when the operator set STD_SEND_NETWORK_DETAILS to a false value."""
+    return _env_on("STD_SEND_NETWORK_DETAILS", default=True)
+
+
+def _reduce_networks(networks):
+    """Reduce each networks item to the original {name, aliases} shape."""
+    out = []
+    for item in networks:
+        if isinstance(item, dict):
+            out.append({"name": item.get("name"), "aliases": item.get("aliases") or []})
+        else:
+            out.append(item)
+    return out
+
+
+def _has_network_details(networks):
+    return any(
+        isinstance(item, dict) and any(k in item for k in network_info.DETAIL_KEYS)
+        for item in networks or []
+    )
 
 
 def _to_canonical(kwargs: dict) -> dict:
@@ -73,13 +128,24 @@ def _to_canonical(kwargs: dict) -> dict:
             logger.debug(f"Dropping unknown key '{key}' from STD payload")
             continue
         if canonical_key in _BOOL_FIELDS:
-            value = str(value).strip().lower() in ("true", "1", "yes")
+            parsed = parse_bool(value)
+            if parsed is None:
+                # Leave the key out so STD keeps what it has; sending False
+                # would silently turn a health check off over a typo.
+                logger.warning(
+                    f"Container '{kwargs.get('container_name')}': label "
+                    f"'dockernotifier.std.{key}'='{value}' is not a boolean "
+                    f"(use true/false); leaving it out of the payload"
+                )
+                continue
+            value = parsed
         elif canonical_key in _INT_FIELDS:
             try:
                 value = int(value)
             except (TypeError, ValueError):
                 logger.warning(
                     f"Could not coerce {canonical_key}='{value}' to int; dropping"
+                    f" (container '{kwargs.get('container_name')}')"
                 )
                 continue
         out[canonical_key] = value
@@ -97,11 +163,20 @@ def is_configured():
 
 # --- STD capability gate (GET /api/v1/meta) -------------------------------
 #
-# STD's schema forbids unknown keys, so `image_info` may only be sent to an
-# STD that advertises it. The answer is cached and shared between the event
-# loop and the refresh-loop thread, hence the lock. It is re-checked when the
+# STD's schema forbids unknown keys, so a gated field may only be sent to an
+# STD that advertises it: `image_info` (STD 0.12.0+) and `network_details`
+# (the driver/ip_address/ipv6_address/mac_address keys of a networks item,
+# STD 0.13.0+). The answer is cached and shared between the event loop and
+# the refresh-loop thread, hence the lock. It is re-checked when the
 # X-STD-API-Revision header on a register response changes, or after a
-# register 400 that rejects image_info.
+# register 400 that rejects a gated feature.
+
+FEATURES = ("image_info", "network_details")
+
+_UNSUPPORTED_HINT = {
+    "image_info": "upgrade STD to 0.12.0+ for image digest checks",
+    "network_details": "upgrade STD to 0.13.0+ for network details",
+}
 
 # After a failed /meta check, try again no sooner than this (seconds) when
 # nothing else (a revision header) triggers a re-check.
@@ -113,9 +188,11 @@ _state = {
     "api_revision": None,
     "features": None,          # list of str once /meta answered
     "image_info_supported": False,
+    "network_details_supported": False,
     "last_check": None,        # epoch seconds of the last /meta attempt
     "last_check_ok": False,
-    "rejected_revision": None,  # revision at which STD 400'd image_info
+    # feature -> API revision at which STD 400'd that feature
+    "rejected": {},
 }
 # Log-once flags; guarded by _state_lock.
 _flags = set()
@@ -134,7 +211,11 @@ def std_status():
     out["last_check"] = (
         datetime.fromtimestamp(last).isoformat() if last is not None else None
     )
-    out.pop("rejected_revision", None)
+    out.pop("rejected", None)
+    # None until the first /meta check has happened.
+    out["features_supported"] = {
+        f: (out[f"{f}_supported"] if last is not None else None) for f in FEATURES
+    }
     return out
 
 
@@ -151,7 +232,8 @@ def refresh_meta(reason="check"):
     """Ask STD what it supports (GET /api/v1/meta, no auth) and cache it.
 
     Never raises. A 404 (STD older than 0.10.0), a connection error, or an
-    unparseable body all mean "no image_info support".
+    unparseable body all mean "no gated feature supported". Returns whether
+    `image_info` is supported.
     """
     url = f"{_base_url()}/api/v1/meta"
     version = revision = features = None
@@ -180,17 +262,18 @@ def refresh_meta(reason="check"):
             _state["std_version"] = version
             _state["api_revision"] = revision
             _state["features"] = features
-            rejected = (
-                _state["rejected_revision"] is not None
-                and _state["rejected_revision"] == revision
-            )
-            if not rejected:
-                _state["rejected_revision"] = None
-            _state["image_info_supported"] = "image_info" in features and not rejected
+            for f in FEATURES:
+                rejected = (
+                    f in _state["rejected"] and _state["rejected"][f] == revision
+                )
+                if not rejected:
+                    _state["rejected"].pop(f, None)
+                _state[f"{f}_supported"] = f in features and not rejected
         else:
             _state["features"] = None
-            _state["image_info_supported"] = False
-        supported = _state["image_info_supported"]
+            for f in FEATURES:
+                _state[f"{f}_supported"] = False
+        supported = {f: _state[f"{f}_supported"] for f in FEATURES}
         cur_revision = _state["api_revision"]
 
     if ok:
@@ -201,35 +284,46 @@ def refresh_meta(reason="check"):
     elif _first_time("meta_failed"):
         logger.info(
             f"Could not read STD capabilities from {url} (STD older than 0.10.0 "
-            f"or unreachable); not sending image_info."
+            f"or unreachable); not sending {' or '.join(FEATURES)}."
         )
 
-    if supported:
-        _flags.discard("unsupported_logged")
-    elif _first_time("unsupported_logged"):
-        logger.info(
-            f"STD at {_base_url()} does not accept image_info (API revision "
-            f"{cur_revision if cur_revision is not None else 'unknown'}); "
-            f"upgrade STD to 0.12.0+ for image digest checks."
-        )
+    for f in FEATURES:
+        flag = f"unsupported_logged:{f}"
+        if supported[f]:
+            _flags.discard(flag)
+        elif _first_time(flag):
+            logger.info(
+                f"STD at {_base_url()} does not accept {f} (API revision "
+                f"{cur_revision if cur_revision is not None else 'unknown'}); "
+                f"{_UNSUPPORTED_HINT[f]}."
+            )
     if ok:
         _flags.discard("meta_failed")
-    return supported
+    return supported["image_info"]
 
 
-def image_info_supported():
-    """True when the STD we talk to accepts `image_info`.
+def feature_supported(name):
+    """True when the STD we talk to accepts the gated feature `name`.
 
     Checks /meta on first use, and again (rate-limited) while the last
     check failed.
     """
+    if name not in FEATURES:
+        raise ValueError(f"unknown STD feature {name!r}")
     with _state_lock:
         last = _state["last_check"]
         last_ok = _state["last_check_ok"]
-        supported = _state["image_info_supported"]
+        supported = _state[f"{name}_supported"]
     if last is None or (not last_ok and time.time() - last >= META_RETRY_SECONDS):
-        return refresh_meta("first use" if last is None else "retry")
+        refresh_meta("first use" if last is None else "retry")
+        with _state_lock:
+            return _state[f"{name}_supported"]
     return supported
+
+
+def image_info_supported():
+    """True when the STD we talk to accepts `image_info`."""
+    return feature_supported("image_info")
 
 
 def check_meta_at_startup():
@@ -261,21 +355,38 @@ def _observe_headers(response):
         logger.info(f"STD at {_base_url()} version is now {ver_header}")
 
 
-def _is_image_info_rejection(response):
-    """True when a 400 register response blames the image_info field."""
+def _rejected_features(response):
+    """The set of gated features a 400 register response blames.
+
+    Detected structurally, never from error text. `image_info` is blamed by
+    `unknown_keys` or a `details[].loc[0] == "image_info"`. `network_details`
+    only by a `details[].loc` of `["networks", <i>, <new key>, ...]`: an old
+    STD reports the extra key that way (and lists just "networks" in
+    `unknown_keys`, which must NOT be acted on: it would suggest dropping
+    the whole field).
+    """
+    out = set()
     try:
         body = response.json()
     except ValueError:
-        return False
+        return out
     if not isinstance(body, dict):
-        return False
+        return out
     if "image_info" in (body.get("unknown_keys") or []):
-        return True
+        out.add("image_info")
     for detail in body.get("details") or []:
         loc = detail.get("loc") if isinstance(detail, dict) else None
-        if isinstance(loc, (list, tuple)) and loc and loc[0] == "image_info":
-            return True
-    return False
+        if not isinstance(loc, (list, tuple)) or not loc:
+            continue
+        if loc[0] == "image_info":
+            out.add("image_info")
+        elif (
+            loc[0] == "networks"
+            and len(loc) >= 3
+            and loc[2] in network_info.DETAIL_KEYS
+        ):
+            out.add("network_details")
+    return out
 
 
 @with_retry
@@ -288,28 +399,37 @@ def post_with_retry(endpoint, payload, headers):
 
 
 def _post_register(endpoint, payload, headers, container_name):
-    """POST a register; on a 400 that rejects image_info, retry once without it."""
+    """POST a register; on a 400 that rejects a gated feature, retry once without it."""
     try:
         response = post_with_retry(endpoint, payload, headers)
     except requests.HTTPError as e:
         response = e.response
         _observe_headers(response)
-        if (
-            "image_info" in payload
-            and response is not None
-            and response.status_code == 400
-            and _is_image_info_rejection(response)
-        ):
-            logger.warning(
-                f"STD rejected image_info for '{container_name}'; "
-                f"retrying once without it"
-            )
-            with _state_lock:
-                _state["rejected_revision"] = _state["api_revision"]
-                _state["image_info_supported"] = False
-            refresh_meta("register 400 on image_info")
-            stripped = {k: v for k, v in payload.items() if k != "image_info"}
-            return post_with_retry(endpoint, stripped, headers)
+        if response is not None and response.status_code == 400:
+            blamed = _rejected_features(response)
+            present = set()
+            if "image_info" in payload:
+                present.add("image_info")
+            if _has_network_details(payload.get("networks")):
+                present.add("network_details")
+            blamed &= present
+            if blamed:
+                logger.warning(
+                    f"STD rejected {', '.join(sorted(blamed))} for "
+                    f"'{container_name}'; retrying once without "
+                    f"{'it' if len(blamed) == 1 else 'them'}"
+                )
+                with _state_lock:
+                    for f in blamed:
+                        _state["rejected"][f] = _state["api_revision"]
+                        _state[f"{f}_supported"] = False
+                refresh_meta("register 400 on " + ", ".join(sorted(blamed)))
+                stripped = dict(payload)
+                if "image_info" in blamed:
+                    stripped.pop("image_info", None)
+                if "network_details" in blamed:
+                    stripped["networks"] = _reduce_networks(payload["networks"])
+                return post_with_retry(endpoint, stripped, headers)
         raise
     _observe_headers(response)
     return response
@@ -343,6 +463,13 @@ def register(**kwargs):
     # Defensive: never send image_info to an STD that has not advertised it.
     if kwargs.get("image_info") is not None and not image_info_supported():
         kwargs.pop("image_info")
+
+    # Likewise for the per-network details: STD < 0.13.0 400s on them.
+    networks = kwargs.get("networks")
+    if _has_network_details(networks) and not (
+        send_network_details_enabled() and feature_supported("network_details")
+    ):
+        kwargs["networks"] = _reduce_networks(networks)
 
     payload = _to_canonical(kwargs)
 

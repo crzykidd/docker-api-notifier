@@ -5,6 +5,59 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
+## 2026-11-22 — One warning per transition, plus a 10-minute back-off, for proxy 403s
+
+- **Why.** Behind `tecnativa/docker-socket-proxy` with `NETWORKS=0` /
+  `IMAGES=0`, the network-driver and image lookups get 403. The network one
+  logged only at debug (driver silently missing); the image one warned per
+  image without saying what to change.
+- **Shared module.** `docker_access.py` owns the 403 test (exactly
+  `APIError` with `status_code == 403`; `NotFound` 404 stays a normal
+  debug case), the denied/ok state per lookup kind, and the back-off. Both
+  lookups and `/healthz` use it; state is behind a lock because the refresh
+  thread and event loop both look things up.
+- **Warn on the transition into denied, not once per process.** A success
+  clears the flag and logs once at INFO, so a proxy that is fixed and later
+  broken again warns again. Repeats stay at debug.
+- **Back-off, not a permanent flag.** A denied kind is skipped for 10
+  minutes, then retried, so fixing the proxy needs no restart and a
+  refresh cycle doesn't hammer it per network/image.
+- **`/healthz` `docker_permissions`** is informational (a denial is like a
+  STD outage, not unhealthy). A kind is `unknown` until its lookup has run.
+  Non-403 failures don't change the status.
+
+---
+
+## 2026-11-22 — STD labels hardened; network details gated per feature
+
+- **Reserved-key rule.** A `dockernotifier.std.<key>` label is dropped with
+  a warning when `<key>` is in `base_kwargs` (derived, not hand-listed) or
+  in `{host, image_info, exposure_observations, timestamp}`. A collision
+  made `register(**base_kwargs, **extras)` raise `TypeError`, so the
+  container never registered. `skip` is consumed as the opt-out and never
+  forwarded.
+- **`std.host` is not an override.** It used to win silently over the
+  detected host in `_to_canonical`, splitting one host's containers across
+  two names. `HOST_NAME_OVERRIDE` is the one supported way to set the host.
+- **An unparsable bool leaves the key out; it doesn't send False.** STD
+  reads absence as "no change", so a typo keeps the existing setting.
+  Accepted wart: on a brand-new row STD creates a missing health toggle as
+  disabled, so the typo still ends up off there.
+- **Per-`NetworkID` driver cache** (bounded, ~256): a network's driver never
+  changes and the refresh loop re-reads every container each cycle. Lookup
+  uses `container.client` (main creates several Docker clients). Failures
+  are not cached. Details are only collected when STD will fire.
+- **`network_details` rejection is read from `details[].loc` only.** An old
+  STD reports a nested extra key as `unknown_keys: ["networks"]` plus a
+  detail with `loc: ["networks", 0, "driver"]`; acting on `unknown_keys`
+  would drop the whole `networks` field. The retry reduces items to
+  `{name, aliases}`. The gate and the retry stay in the STD module
+  (`base_kwargs` is shared with DNS).
+- **`/healthz` stays backward compatible:** `image_info_supported` keeps its
+  meaning; `features_supported` is added.
+
+---
+
 ## 2026-11-21 — /healthz: downstream outages never make it unhealthy
 
 - **200 vs 503 depends only on the notifier itself**: the Docker daemon

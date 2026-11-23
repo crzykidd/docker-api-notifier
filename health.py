@@ -28,6 +28,7 @@ import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import docker_access
 from logging_setup import get_logger
 
 logger = get_logger("health")
@@ -202,6 +203,7 @@ def snapshot():
                 "interval_seconds": _ctx["refresh_interval"],
                 "last_run_at": _refresh["last_run_at"],
             },
+            "docker_permissions": docker_access.statuses(),
             "interpreters": list(_ctx["interpreters"]),
             "notifiers": {
                 "dns": {
@@ -215,6 +217,7 @@ def snapshot():
                     "api_revision": std_state.get("api_revision"),
                     "image_info_supported": (
                         std_state.get("image_info_supported") if checked else None),
+                    "features_supported": std_state["features_supported"],
                     **_notifiers.get("service_tracker_dashboard", _fresh_notifier()),
                 },
             },

@@ -194,11 +194,16 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
 
 ## Build Status
 
-Current shipped release: **v0.5.1** (latest tag on `main`).
+Current shipped release: **v0.6.0** (latest tag on `main`).
 
-Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.5.1 is a
-docs-only patch (the README's license statement corrected to GPL-3.0); no
-behavior or STD wire-contract change. v0.5.0 added the
+Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.6.0 extends
+the wire contract: each `networks[]` item can carry `driver`,
+`ip_address`, `ipv6_address` and `mac_address`, sent only to STD v0.13.0+
+that advertises `network_details` via `/api/v1/meta` (older STD gets just
+name/aliases). It also adds `dockernotifier.std.skip`, hardens the
+`dockernotifier.std.*` labels (reserved keys, `host`, bool typos), and
+reports a docker-socket-proxy 403 once with the setting to change. v0.5.1
+was a docs-only patch. v0.5.0 added the
 `image_info` wire key (running image digests and OCI labels), sent only to
 STD v0.12.0+ that advertises it via `/api/v1/meta` — older STD keeps
 working without it. It also added the `/healthz` endpoint and image
@@ -311,6 +316,12 @@ The notifier must keep older STD versions working:
   response header changes or STD 400s the field. Opt out with
   `STD_SEND_IMAGE_INFO=false`. The DNS notifier never receives it.
 
+- `networks[].driver` / `ip_address` / `ipv6_address` / `mac_address`
+  require STD v0.13.0+ (feature `network_details`). Same mechanism as
+  `image_info`; opt out with `STD_SEND_NETWORK_DETAILS=false`. The gate
+  and the 400-retry live in the STD notifier. A 400 is attributed from
+  `details[].loc` only, never from `"networks"` in `unknown_keys`.
+
 ### Version pairing history (informational, not the rule)
 
 - Notifier v0.3.0 switched to canonical keys + `/api/v1/register`;
@@ -320,6 +331,8 @@ The notifier must keep older STD versions working:
 - Notifier v0.5.0 added `image_info`, gated on STD's `/api/v1/meta`;
   pairs with STD v0.12.0+ (older STD keeps working, it just never gets
   the field).
+- Notifier v0.6.0 added `networks[]` details, gated on `network_details`;
+  pairs with STD v0.13.0+ (older STD gets name/aliases only).
 
 ## Notifier Module Conventions
 

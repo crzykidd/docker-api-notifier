@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-22
+
+### Added
+- Sends each network's driver, IPv4, IPv6 and MAC address to Service Tracker
+  Dashboard 0.13.0+, so its Ports page handles macvlan/ipvlan and
+  host-network containers. Only sent when STD advertises `network_details`
+  in `/api/v1/meta` (older STD keeps working and gets just name/aliases);
+  opt out with `STD_SEND_NETWORK_DETAILS=false`. Values that Docker reports
+  but that don't validate are left out rather than risking the register.
+  `/healthz` gains `features_supported` (per STD feature, `null` until the
+  first check).
+- New label `dockernotifier.std.skip=true` stops reporting that container
+  to STD, even with `STD_REPORT_ALL_CONTAINERS` on. DNS is unaffected. It
+  doesn't remove an entry STD already has; delete that in STD.
+
+### Fixed
+- A Docker socket proxy that blocks network or image lookups is now
+  reported once, with the setting to change (`NETWORKS=1`, `IMAGES=1`);
+  before, network details were silently missing and image lookups logged a
+  403 per image. The notifier then backs off for 10 minutes before trying
+  again (so fixing the proxy needs no restart) and logs once when the lookup
+  works again. `/healthz` gains `docker_permissions` (`networks` / `images`:
+  `ok`, `denied` or `unknown`); a denial doesn't make the notifier
+  unhealthy. The README has a new "Running behind a docker-socket-proxy"
+  section. Nothing sent to STD changes.
+- A `dockernotifier.std.*` label named like something the notifier sends
+  itself (`container_name`, `networks`, `image_name`, ...) no longer stops
+  that container from registering; the label is ignored with a warning.
+  `dockernotifier.std.timestamp` is ignored the same way.
+- `dockernotifier.std.host` no longer silently overrides the reported host
+  name; it is ignored with a warning pointing at `HOST_NAME_OVERRIDE`.
+- A mistyped health-check label (`internal.health=ture`) no longer turns
+  the check off: it logs a warning and is left out so STD keeps its
+  current setting. `on`/`off` are now accepted as well as
+  `true`/`false`/`1`/`0`/`yes`/`no`. An unparsable `sort.priority` now
+  logs a warning too.
+
 ## [0.5.1] — 2026-11-22
 
 ### Fixed
@@ -257,7 +294,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.2...v0.4.3
