@@ -197,9 +197,12 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
 
 ## Build Status
 
-Current shipped release: **v0.7.0** (latest tag on `main`).
+Current shipped release: **v0.7.1** (latest tag on `main`).
 
-Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.7.0 does not
+Work in flight is under `[Unreleased]` in `CHANGELOG.md`. v0.7.1 is a
+patch: the notifier exits cleanly on SIGTERM (`docker stop` used to wait
+out the grace period), CI actions are on current majors, and Dependabot
+opens one grouped PR a week. No wire-contract change. v0.7.0 does not
 change the STD wire contract. It adds an optional `/healthz` client-IP
 allowlist (`HEALTH_ALLOWED_IPS`) and `docker-compose-example.yml` (socket
 proxy, hardening, published `/healthz`), moves the image to
@@ -231,7 +234,8 @@ adds the `pytest` suite, and stops the DNS token being logged on failure.
 Branching, PR flow, and the release rules are in the snippets above; the
 project-specific facts are:
 
-- **CI** (`.github/workflows/ci.yml`, push to `dev`/`main` only): `Lint`
+- **CI** (`.github/workflows/ci.yml`, push to `dev`/`main`, plus PRs into
+  `dev` — i.e. Dependabot's weekly grouped PR): `Lint`
   (ruff 0.15.17, rules in `ruff.toml`), `Config validation` (every YAML/JSON
   parses, and every interpreter YAML passes `interpreter_loader`),
   `Compose validation`, and `Test` (`pytest -q` over `tests/`, which fake

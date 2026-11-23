@@ -1,4 +1,6 @@
 import os
+import signal
+import sys
 import threading
 import time
 
@@ -321,7 +323,15 @@ def _run_interpreters(labels):
         return None
     return interpreter_loader.evaluate(INTERPRETER_LOAD_RESULT.interpreters, labels)
 
+def _handle_sigterm(signum, frame):
+    # As PID 1 in a container, Python gets no default SIGTERM action, so
+    # `docker stop` would wait out the grace period and SIGKILL us.
+    logger.info("SIGTERM received; shutting down")
+    sys.exit(0)
+
+
 def main():
+    signal.signal(signal.SIGTERM, _handle_sigterm)
     client = docker.from_env()
     docker_host = get_host_name()
     version = get_version()

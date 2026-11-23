@@ -14,6 +14,11 @@ name: CI
 on:
   push:
     branches: [dev, main]
+  # Dependabot's weekly PR into dev comes from its own branch, which the
+  # push trigger doesn't cover. Only dev-targeted PRs run here, so the
+  # dev->main release PR still gets exactly one run per check.
+  pull_request:
+    branches: [dev]
 
 permissions:
   contents: read
@@ -23,8 +28,8 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       # Pinned so CI matches local runs (`uvx ruff@0.15.17 check .`). Bump
@@ -36,8 +41,8 @@ jobs:
     name: Config validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
@@ -91,7 +96,7 @@ jobs:
     name: Compose validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # docker-compose.yml interpolates ${DNS_SERVER_URL} etc.; unset vars
       # only warn, so no .env is needed.
       - run: docker compose config --quiet
@@ -101,8 +106,8 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       # Tests fake the Docker client and the HTTP layer: no daemon, no /config.

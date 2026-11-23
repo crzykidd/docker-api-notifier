@@ -5,6 +5,27 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
+## 2026-11-22 — SIGTERM handler; one weekly Dependabot PR with CI on it
+
+- **SIGTERM.** As PID 1 in a container Python has no default SIGTERM
+  action, so `docker stop` waited the grace period and SIGKILLed the
+  notifier (exit 137). `main()` now installs a handler that logs and exits
+  0. Found because busybox `timeout` (Alpine) execs the program as PID 1,
+  which made the release-prep image check hang; it was equally true on
+  slim for `docker stop`. Rejected: `init: true` in compose only (every
+  operator would need it).
+- **Dependabot.** A `multi-ecosystem-groups` group (`weekly`, Mondays,
+  `target-branch: dev`) puts pip, docker and github-actions in one PR
+  instead of one per update. Dependabot reads its config from the default
+  branch, so this takes effect once it reaches `main`.
+- **CI on Dependabot PRs.** `ci.yml` and `docker-publish.yml` gain
+  `pull_request: branches: [dev]` (publish: `[main, dev]`, build only, no
+  push). This narrows the 2026-11-21 "push-only" rule rather than
+  reversing it: the dev→main PR is still covered only by the push run, so
+  no duplicate same-named required checks.
+
+---
+
 ## 2026-11-22 - /healthz client allowlist (`HEALTH_ALLOWED_IPS`)
 
 - **Why.** `/healthz` has no auth but must be published for STD on another
