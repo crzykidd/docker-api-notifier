@@ -231,7 +231,8 @@ adds the `pytest` suite, and stops the DNS token being logged on failure.
 Branching, PR flow, and the release rules are in the snippets above; the
 project-specific facts are:
 
-- **CI** (`.github/workflows/ci.yml`, push to `dev`/`main` only): `Lint`
+- **CI** (`.github/workflows/ci.yml`, push to `dev`/`main`, plus PRs into
+  `dev` — i.e. Dependabot's weekly grouped PR): `Lint`
   (ruff 0.15.17, rules in `ruff.toml`), `Config validation` (every YAML/JSON
   parses, and every interpreter YAML passes `interpreter_loader`),
   `Compose validation`, and `Test` (`pytest -q` over `tests/`, which fake

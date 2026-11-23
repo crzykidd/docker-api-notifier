@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `docker stop` (and restarts and upgrades) now stops the notifier right
+  away. Running as the container's main process, it ignored SIGTERM, so
+  Docker waited the full grace period and then killed it.
+
+### Changed
+- Dependabot now opens a single grouped PR each Monday (pip, base image and
+  GitHub Actions together) instead of one PR per update, and CI and the
+  image build run on it before it's merged.
+- CI and image-build actions updated to their current major versions
+  (checkout 7, setup-python 7, setup-qemu 4, setup-buildx 4, login 4,
+  metadata 6, build-push 7; all now on Node 24), and the test dependency
+  pytest to 9.2.0. No change to the image itself.
+
 ## [0.7.0] — 2026-11-22
 
 ### Added
