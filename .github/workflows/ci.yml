@@ -53,7 +53,7 @@ jobs:
 
           # 1. Every checked-in YAML/JSON file parses.
           yaml_files = (
-              ['docker-compose.yml']
+              ['docker-compose.yml', 'docker-compose-example.yml']
               + sorted(glob.glob('.github/workflows/*.yml'))
               + sorted(glob.glob('interpreters/builtin/*.yml'))
               + sorted(glob.glob('docs/community-interpreters/*.yml'))
@@ -95,6 +95,7 @@ jobs:
       # docker-compose.yml interpolates ${DNS_SERVER_URL} etc.; unset vars
       # only warn, so no .env is needed.
       - run: docker compose config --quiet
+      - run: docker compose -f docker-compose-example.yml config --quiet
 
   test:
     name: Test

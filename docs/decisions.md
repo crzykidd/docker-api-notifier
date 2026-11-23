@@ -5,6 +5,68 @@ workarounds — newest at top. One entry per decision.
 
 ---
 
+## 2026-11-22 - /healthz client allowlist (`HEALTH_ALLOWED_IPS`)
+
+- **Why.** `/healthz` has no auth but must be published for STD on another
+  machine; operators wanted to restrict it without a reverse proxy.
+- **Approach.** Stdlib `ipaddress`, parsed once at start; the check is on
+  the TCP peer in the handler (GET and HEAD), before any snapshot work.
+  Loopback is always allowed so the in-container `HEALTHCHECK` works.
+  Denials are DEBUG-only logs (scanner flood).
+- **Fail closed.** If the variable is set but no entry parses, only
+  loopback is allowed (with an ERROR), so a typo never opens the endpoint.
+- **Rejected.** Trusting `X-Forwarded-For` (spoofable); filtering at bind
+  time (cannot express per-client rules).
+- **Caveat.** Clients via the host loopback / docker-proxy can show up as
+  the bridge gateway; documented in the README and PRD §4.2.
+
+---
+
+## 2026-11-22 — Skip unchanged DNS records via a best-effort `records/get`
+
+- **Why.** Every update called `records/add` with `overwrite=true`, which
+  bumps the zone SOA serial even when nothing changed (245 -> 251 in one
+  session), triggering needless zone transfers.
+- **Approach.** Derive `.../records/get` from `DNS_SERVER_URL` (must end in
+  `/records/add`, else skip the check) and compare the single CNAME's
+  target (case-insensitive, trailing dot ignored) and TTL. Any lookup
+  problem falls through to the add; the lookup is not retried (the add
+  retries) and never logs the URL or raw exception (token in query).
+- **Accepted side effect.** A skipped record keeps its older "Added by ...
+  at <timestamp>" comment.
+- **Related.** HTTP 200 with `status != "ok"` is now a DNS failure, and the
+  refresh loop sleeps before its first pass (the boot scan already
+  reported everything).
+
+---
+
+## 2026-11-22 — Alpine base image; no pip/setuptools/wheel at runtime
+
+- **Why.** A Trivy scan of `:0.6.0` found our own dependencies clean; every
+  finding came from `python:3.11-slim`: ~247 Debian ones (one with a fix,
+  zlib) and 10 in pip/setuptools and their vendored copies (`wheel`,
+  `jaraco.context`, and pip 26.3's vendored `pkg_resources` from
+  setuptools 70.3.0, which no pip upgrade fixes).
+- **Alpine over slim.** A trial `python:3.11-alpine` build was 119 MB vs
+  248 MB and scanned at 0 findings vs 217. All runtime deps have musllinux
+  wheels or are pure Python, so no compiler is needed. Risk accepted:
+  musl's resolver differs from glibc (search domains / short names);
+  verify against real STD and Technitium hostnames on `:dev` before
+  release. Rejected: distroless (no shell to debug with) and
+  Chainguard/Wolfi (free tier is `:latest` only, can't pin 3.11).
+- **Remove the packaging tooling rather than upgrade it.** Nothing imports
+  it at runtime (the notifier and `healthcheck.py` verified without it).
+  pip uninstalls itself last; the setuptools wheel in
+  `ensurepip/_bundled` (venv bootstrap only) is deleted too. Cost: no
+  `pip` for ad-hoc debugging in the container.
+- **`apk upgrade` in the build** because a base image can lag its distro's
+  security fixes (slim was missing the zlib fix).
+- **Dependabot** watches the base image (Python minor/major bumps ignored)
+  and pip/actions, with PRs to `dev`; security-update PRs stay off because
+  they target `main`.
+
+---
+
 ## 2026-11-22 — One warning per transition, plus a 10-minute back-off, for proxy 403s
 
 - **Why.** Behind `tecnativa/docker-socket-proxy` with `NETWORKS=0` /

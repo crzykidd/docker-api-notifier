@@ -61,6 +61,9 @@ notifiers the container has opted in to via `dockernotifier.notifiers`.
 Supported notifiers today:
 
 - **Technitium DNS** — adds/updates a CNAME record on container start.
+  If the record already points at the same target with the same TTL
+  (checked via `records/get`, derived from `DNS_SERVER_URL`), it is left
+  alone so the zone's SOA serial doesn't bump.
 - **Service Tracker Dashboard (STD)** — POSTs container metadata to
   STD's register endpoint.
 
@@ -79,6 +82,7 @@ notifier targets can be added without touching the core event loop.
 | `STD_REFRESH_SECONDS`     | No       | `60`    | Periodic re-scan interval in **seconds**. |
 | `NOTIFIER_LOG_TO_STDOUT`  | No       | `1`     | Set to `0` to silence console output. Logs still go to `/config/notifier.log`. Replaces the per-notifier `DNS_LOG_TO_STDOUT` and `STD_LOG_TO_STDOUT` vars, which are no longer recognized. |
 | `HEALTH_PORT`             | No       | `8080`  | Port for the [`/healthz` health endpoint](#health-endpoint). Set to `0` to disable it (the image's `HEALTHCHECK` then always passes). A non-numeric value falls back to `8080`. |
+| `HEALTH_ALLOWED_IPS`      | No       | *(unset)* | Comma- and/or whitespace-separated IPs or CIDRs (e.g. `10.100.18.10, 10.100.20.0/24, fd00::/8`) allowed to read `/healthz`; everyone else gets `403`. Unset or empty = open to any client. Loopback is always allowed. See [Health endpoint](#health-endpoint). |
 | `HOST_NAME_OVERRIDE`      | No       | *host hostname* | Overrides the host name used as the DNS CNAME target (`<host>.<dockerdomain>`). If unset, the notifier reads the host's hostname from the `/etc/hostname` mount (falling back to the container's own hostname). Set this if running in WSL or other environments where the host has a different name than your DNS entries expect. |
 
 ### Technitium DNS
@@ -272,6 +276,22 @@ treats as "no update" — existing exposure rows are preserved.
 
 ## Docker Compose Example
 
+**For a real host, start from
+[`docker-compose-example.yml`](docker-compose-example.yml).** It runs the
+notifier behind a read-only
+[docker-socket-proxy](#running-behind-a-docker-socket-proxy) on an internal
+network, with a read-only filesystem, no Linux capabilities and
+`no-new-privileges`, and publishes `/healthz` on `HEALTH_HOST_PORT`
+(default `8080`) so STD can monitor it. Secrets go in a `.env` file beside
+it; the file's header lists them. Because the container has no
+capabilities, the `/config` directory on the host must be owned by root
+(Docker creates it that way; `sudo chown root:root` an existing one).
+
+The minimal version below mounts the Docker socket directly. It's fine for
+trying the notifier out, but prefer the example file for anything that
+stays running. (`docker-compose.yml` in the repo is the development setup:
+it builds from source.)
+
 ```yaml
 services:
   docker-api-notifier:
@@ -380,6 +400,21 @@ The notifier serves `GET /healthz` (JSON) on `HEALTH_PORT` (default `8080`,
 The port is not published by default; add `ports: - "8080:8080"` to reach it
 from the host.
 
+`/healthz` has no login. To limit who can read it, set `HEALTH_ALLOWED_IPS`
+to a list of IPs and/or CIDR networks; any other client gets
+`403 {"error": "forbidden"}` (for every path). Loopback (`127.0.0.0/8`,
+`::1`) is always allowed, so the image `HEALTHCHECK` keeps working. Invalid
+entries are logged as warnings and skipped; if every entry is invalid the
+endpoint fails closed (loopback only) and an error is logged. Denied
+requests are logged at DEBUG only.
+
+The filter checks the TCP peer address and never trusts `X-Forwarded-For`
+or other headers. It sees the address Docker delivers: with normally
+published ports (iptables DNAT) remote clients keep their real source IP,
+but a client connecting through the host's own loopback / docker-proxy may
+appear as the bridge gateway (for example `172.18.0.1`) - add that address
+if you probe from the host itself.
+
 ```json
 {
   "status": "ok",
@@ -415,6 +450,9 @@ from the host.
   shows in that notifier's `last_error*` / `error_count` fields while the
   endpoint stays 200, so an auto-restart setup won't restart-loop over
   someone else's outage.
+- `refresh_loop.last_run_at` is `null` until the first refresh pass, which
+  runs `interval_seconds` after startup (the boot scan covers the start).
+  It does not affect `status`.
 - `configured` reflects the env vars, not whether any container opted in.
   `last_error` is a short, credential-scrubbed string. `std_version`,
   `api_revision` and `image_info_supported` are `null` until the first STD
@@ -496,7 +534,7 @@ Images are published to `ghcr.io/crzykidd/docker-api-notifier`. Docker Hub
 - `:latest` follows the `main` branch — CI-verified pre-release.
 - `:dev` follows the `dev` branch — work in progress.
 - `:sha-<short>` is published for every push for exact pinning.
-- Semver-tagged images (`:0.6.0`, `:0`) are published from GitHub Releases.
+- Semver-tagged images (`:0.7.0`, `:0`) are published from GitHub Releases.
 
 The running version is logged at startup
 (`Starting Docker API Notifier version X.Y.Z on host: ...`) and lives in

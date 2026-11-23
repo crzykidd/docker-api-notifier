@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-22
+
+### Added
+- `HEALTH_ALLOWED_IPS`: optionally limit who can read `/healthz` to a list
+  of IP addresses and/or CIDR networks (for example
+  `10.100.18.10, 10.100.20.0/24`). Other clients get `403`. Unset (the
+  default) keeps the endpoint open; loopback is always allowed so the
+  image `HEALTHCHECK` keeps working. Invalid entries are warned about and
+  skipped; if none are valid the endpoint allows loopback only. The
+  production compose example passes it through.
+- `docker-compose-example.yml`: a production example for one Docker host.
+  The notifier reaches Docker only through a read-only socket-proxy sidecar
+  on an internal network, runs with a read-only filesystem, no Linux
+  capabilities and `no-new-privileges`, and publishes `/healthz` on a host
+  port (`HEALTH_HOST_PORT`, default 8080) so STD or another monitor can
+  check it. Its header lists the `.env` values to set. With the hardening,
+  the `/config` directory must be owned by root.
+
+### Security
+- Test dependency `pytest` bumped to 9.0.3 (PYSEC-2026-1845). It is used
+  only by CI and is not in the image, so running notifiers were never
+  affected.
+- The image is now based on Alpine (`python:3.11-alpine`) instead of
+  Debian slim: about half the size (~120 MB vs ~250 MB) and no known CVEs
+  at release time, versus ~217 OS findings on slim (none of which had a
+  Debian fix). The build also applies Alpine security updates and no
+  longer ships pip, setuptools or wheel, which the notifier never uses at
+  runtime. Inside the container there is `sh` but no `bash`, and no `pip`.
+
+### Changed
+- Each notifier dispatch is now logged once at INFO (the `main.py` line
+  next to `[MATCH]`); the duplicate line from inside the STD and DNS
+  notifier modules moved to DEBUG.
+- A DNS update now logs one short INFO line
+  (`DNS record <fqdn> CNAME <value>: set`); Technitium's full JSON reply is
+  logged at DEBUG.
+- The periodic refresh loop now waits `STD_REFRESH_SECONDS` before its
+  first pass instead of re-registering every container right after the
+  boot scan. `/healthz` `refresh_loop.last_run_at` is `null` until that
+  first refresh; this does not affect the health status.
+- Dependabot now opens weekly update PRs against `dev` for pip, the
+  Dockerfile base image and GitHub Actions.
+
+### Fixed
+- The DNS notifier no longer rewrites a CNAME that already points at the
+  right target with the same TTL (it checks with Technitium's
+  `records/get` first, best-effort), so the zone's SOA serial stops
+  bumping on every update and secondaries stop getting needless zone
+  transfers. A skipped record keeps its older "Added by ... at <time>"
+  comment.
+- A Technitium reply of HTTP 200 with `"status": "error"` is now treated as
+  a DNS failure (ERROR log with the reason, `/healthz` `error_count`)
+  instead of a success.
+
 ## [0.6.0] — 2026-11-22
 
 ### Added
@@ -294,7 +348,8 @@ Released.
 
 Initial public release.
 
-[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/crzykidd/docker-api-notifier/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/crzykidd/docker-api-notifier/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/crzykidd/docker-api-notifier/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/crzykidd/docker-api-notifier/compare/v0.4.3...v0.5.0

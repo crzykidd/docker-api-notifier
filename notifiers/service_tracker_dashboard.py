@@ -458,7 +458,7 @@ def register(**kwargs):
 
     container_name = kwargs.get("container_name")
     action = kwargs.get("action", "event")
-    logger.info(f'STD notifier triggered for "{container_name}" on "{action}"')
+    logger.debug(f'STD notifier triggered for "{container_name}" on "{action}"')
 
     # Defensive: never send image_info to an STD that has not advertised it.
     if kwargs.get("image_info") is not None and not image_info_supported():

@@ -1,0 +1,117 @@
+# docker-api-notifier — production example.
+#
+# One copy per Docker host. The notifier never touches the Docker socket
+# directly: it talks to a read-only socket-proxy sidecar on an internal
+# network, and publishes no ports.
+#
+# (docker-compose.yml in this repo is the development setup: it builds
+# from source and mounts the checkout. Use this file for real hosts.)
+#
+# Put the secrets and per-site values in a .env file next to this file
+# (chmod 600, never commit it):
+#
+#   DNS_SERVER_URL=https://dns.example.com:53443/api/zones/records/add
+#   DNS_SERVER_API_TOKEN=<token of a Technitium user limited to your zone>
+#   STD_URL=https://std.example.com
+#   STD_API_TOKEN=<STD API token>
+#   TZ=America/Los_Angeles
+#   HEALTH_HOST_PORT=8080        # host port for /healthz (default 8080)
+#   HEALTH_ALLOWED_IPS=10.100.18.10   # STD host; empty = anyone
+#
+# Leave out the DNS_* or STD_* pair to run with only the other notifier.
+# Prefer HTTPS for both: the STD token travels as a bearer header and the
+# Technitium token in the query string.
+#
+# Start: docker compose -f docker-compose-example.yml up -d
+# Check: docker exec docker-api-notifier python healthcheck.py && echo healthy
+
+name: docker-api-notifier
+
+services:
+  docker-api-notifier:
+    # :0 follows every 0.x release. Pin an exact version (e.g. :0.6.0) if
+    # you'd rather upgrade by hand. Avoid :dev in production.
+    image: ghcr.io/crzykidd/docker-api-notifier:0
+    container_name: docker-api-notifier
+    restart: unless-stopped
+    depends_on:
+      - socket-proxy
+    environment:
+      DOCKER_HOST: tcp://docker-api-notifier-socket-proxy:2375
+      DNS_SERVER_TYPE: Technitium
+      DNS_SERVER_URL: ${DNS_SERVER_URL:-}
+      DNS_SERVER_API_TOKEN: ${DNS_SERVER_API_TOKEN:-}
+      STD_URL: ${STD_URL:-}
+      STD_API_TOKEN: ${STD_API_TOKEN:-}
+      STD_REFRESH_SECONDS: 120
+      TZ: ${TZ:-UTC}
+      HEALTH_ALLOWED_IPS: ${HEALTH_ALLOWED_IPS:-}
+      # The CNAME target is <host>.<dockerdomain>; <host> is read from the
+      # /etc/hostname mount below. Override it if that name is wrong for DNS.
+      # HOST_NAME_OVERRIDE: docker01
+    volumes:
+      - /etc/hostname:/etc/host_hostname:ro
+      # Log file (notifier.log, rotated at 10 MB). The container runs with
+      # no capabilities, so this directory must be owned by root: let
+      # Docker create it, or `sudo chown root:root` an existing one.
+      - /var/docker/docker-api-notifier:/config
+      # Optional: your own interpreter YAMLs (see README → Interpreters).
+      # - /etc/docker-api-notifier/interpreters:/app/interpreters/user:ro
+    networks:
+      - notifier       # outbound: STD and Technitium
+      - socket-proxy   # Docker API, internal only
+    # Hardening: nothing in the image needs to write outside /config and
+    # /tmp, or needs any Linux capability.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # /healthz (port 8080 in the container) is published so STD, or any
+    # monitor on another machine, can check this notifier. It needs no
+    # login and shows versions, host names and (token-scrubbed) error
+    # text, so keep the host port reachable from your LAN only, and set
+    # HEALTH_ALLOWED_IPS in .env to the monitor's address(es) to answer
+    # everyone else with 403. Change the host side with HEALTH_HOST_PORT
+    # in .env if 8080 is taken.
+    ports:
+      - "${HEALTH_HOST_PORT:-8080}:8080"
+    logging:
+      driver: local
+    labels:
+      # Optional: report the notifier itself to STD.
+      - "dockernotifier.notifiers=service-tracker-dashboard"
+
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.1
+    container_name: docker-api-notifier-socket-proxy
+    restart: unless-stopped
+    environment:
+      # Read-only. Events and container inspect are required; NETWORKS and
+      # IMAGES feed the network details and image_info sent to STD (set
+      # them to 0 to withhold those; the notifier warns once and carries on).
+      CONTAINERS: 1
+      EVENTS: 1
+      NETWORKS: 1
+      IMAGES: 1
+      PING: 1
+      VERSION: 1
+      INFO: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket-proxy
+    read_only: true
+    tmpfs:
+      - /run
+      - /tmp
+    logging:
+      driver: local
+
+networks:
+  notifier: {}
+  socket-proxy:
+    internal: true   # no route out; only the notifier can reach the proxy
