@@ -275,6 +275,22 @@ treats as "no update" — existing exposure rows are preserved.
 
 ## Docker Compose Example
 
+**For a real host, start from
+[`docker-compose-example.yml`](docker-compose-example.yml).** It runs the
+notifier behind a read-only
+[docker-socket-proxy](#running-behind-a-docker-socket-proxy) on an internal
+network, with a read-only filesystem, no Linux capabilities and
+`no-new-privileges`, and publishes `/healthz` on `HEALTH_HOST_PORT`
+(default `8080`) so STD can monitor it. Secrets go in a `.env` file beside
+it; the file's header lists them. Because the container has no
+capabilities, the `/config` directory on the host must be owned by root
+(Docker creates it that way; `sudo chown root:root` an existing one).
+
+The minimal version below mounts the Docker socket directly. It's fine for
+trying the notifier out, but prefer the example file for anything that
+stays running. (`docker-compose.yml` in the repo is the development setup:
+it builds from source.)
+
 ```yaml
 services:
   docker-api-notifier:

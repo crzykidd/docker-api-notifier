@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `docker-compose-example.yml`: a production example for one Docker host.
+  The notifier reaches Docker only through a read-only socket-proxy sidecar
+  on an internal network, runs with a read-only filesystem, no Linux
+  capabilities and `no-new-privileges`, and publishes `/healthz` on a host
+  port (`HEALTH_HOST_PORT`, default 8080) so STD or another monitor can
+  check it. Its header lists the `.env` values to set. With the hardening,
+  the `/config` directory must be owned by root.
+
 ### Security
 - Test dependency `pytest` bumped to 9.0.3 (PYSEC-2026-1845). It is used
   only by CI and is not in the image, so running notifiers were never

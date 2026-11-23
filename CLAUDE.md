@@ -172,7 +172,9 @@ rule come from the `code-checkin-and-pr` snippet above. Project extension:
 - Container: single-image Docker on `python:3.11-alpine` (no pip in the
   final image), no compose orchestration of its own
   - `Dockerfile` — production image
-  - `docker-compose.yml` — example deployment
+  - `docker-compose.yml` — development setup (builds from source)
+  - `docker-compose-example.yml` — production example (socket proxy,
+    hardening, published `/healthz`); CI parses and `compose config`s it
 
 ## Configuration
 
